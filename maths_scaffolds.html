@@ -549,6 +549,24 @@
   }
   .subComposeInput:focus{ border-color: var(--mark-deep); }
   .subComposeInput::-webkit-outer-spin-button, .subComposeInput::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .carryCell{
+    font-family:'IBM Plex Mono', monospace;
+    font-size: 18px; font-weight:700;
+    width:66px; height:26px; line-height:26px;
+    text-align:center; color: var(--exchange);
+  }
+  .carryInput{
+    display:block;
+    width:66px; height:26px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:18px; font-weight:700;
+    text-align:center; line-height:normal;
+    border:none; border-bottom:2.5px solid var(--exchange);
+    background: transparent; color: var(--exchange); outline:none;
+    padding:0; margin:0;
+  }
+  .carryInput:focus{ background:#fdf0f2; }
+  .carryInput::-webkit-outer-spin-button, .carryInput::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   .exArrowBtn{
     position:absolute; top:-18px; right:-16px;
     width:30px; height:30px; border-radius:50%;
@@ -581,6 +599,7 @@
     .subAnswerInput.wide{ width:56px; }
     .subDigitCell.twoDigit, .subAnswerCell.twoDigit{ font-size:20px; }
     .subOpCell{ font-size:26px; }
+    .carryCell, .carryInput{ width:50px; font-size:15px; height:22px; line-height:22px; }
   }
 
   /* ---- hub / home screen ---- */
@@ -637,6 +656,11 @@
       <span class="cardIcon">🧱</span>
       <h2>Chimney sum subtraction</h2>
       <p>Column subtraction with exchanging — press the small arrows to borrow a ten as you work through each column.</p>
+    </div>
+    <div class="scaffoldCard" onclick="showApp('ca-app')">
+      <span class="cardIcon">➕</span>
+      <h2>Chimney sum addition</h2>
+      <p>Column addition with carrying — write the carried digit in the small space above the next column as you work through each column.</p>
     </div>
   </div>
 </div>
@@ -819,12 +843,66 @@
 </div>
 </div>
 
+<div class="appContainer" id="ca-app">
+  <div class="wrap">
+    <button class="backBtn" onclick="showHome()">&larr; Back to menu</button>
+  </div>
+<div class="wrap" style="margin-top:0">
+  <h1>Chimney sum addition</h1>
+  <p class="sub">Generates an addition question, or lets pupils build their own, then walks through it column by column, right to left — with a space above each column to carry a ten into the next one.</p>
+
+  <div class="panel" id="ca-setup">
+    <div class="field">
+      <label>Question source</label>
+      <div class="pills" id="ca-modePills">
+        <button class="pill active" data-mode="random">Random question</button>
+        <button class="pill" data-mode="custom">My own numbers</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="ca-digitCountInput">Number of digits</label>
+      <input id="ca-digitCountInput" type="number" inputmode="numeric" min="2" max="8" value="3" style="width:80px; font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
+    </div>
+    <button class="btn" id="ca-startBtn">Start</button>
+  </div>
+
+  <div class="panel" id="ca-presentation">
+    <div class="topRow">
+      <div class="questionLabel" id="ca-questionLabel"></div>
+    </div>
+
+    <div class="subGrid" id="ca-subGrid"></div>
+
+    <div class="checkFeedback" id="ca-numbersFeedback"></div>
+    <div class="answerRow" id="ca-numbersActionRow" style="display:none">
+      <button class="btn" id="ca-numbersCheckBtn">Check numbers</button>
+    </div>
+
+    <p class="stagePrompt" id="ca-stagePrompt"></p>
+    <div class="quotHint" id="ca-quotHint"></div>
+    <div class="checkRow" id="ca-checkRow" style="display:none">
+      <button class="btn" id="ca-checkBtn">Check</button>
+    </div>
+    <div class="checkFeedback" id="ca-checkFeedback"></div>
+
+    <div id="ca-finishHost"></div>
+
+    <div class="controls">
+      <button class="btn secondary" id="ca-resetBtn">New question</button>
+    </div>
+  </div>
+
+  <p class="foot">Always start with the units column on the right. When a column totals 10 or more, carry the ten into the small box above the next column.</p>
+</div>
+</div>
+
 <script>
 function showApp(id){
   document.getElementById('home').style.display = 'none';
   document.getElementById('rn-app').style.display = 'none';
   document.getElementById('bs-app').style.display = 'none';
   document.getElementById('cs-app').style.display = 'none';
+  document.getElementById('ca-app').style.display = 'none';
   document.getElementById(id).style.display = 'block';
   window.scrollTo(0,0);
 }
@@ -2082,6 +2160,418 @@ function render(){
       answerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheck(); });
       setTimeout(() => answerInput.focus(), 30);
     }
+    return;
+  }
+
+  if (colState === 'finished'){
+    stagePrompt.textContent = '';
+    quotHint.textContent = '';
+    checkRow.style.display = 'none';
+    checkFeedback.textContent = '';
+    finishHost.innerHTML = renderFinish();
+  }
+}
+})();
+</script>
+
+<script>
+(function(){
+/* ---------- chimney-sum addition engine ---------- */
+
+function columnLabelsFor(n){
+  const all = ['Ten Millions','Millions','Hundred Thousands','Ten Thousands','Thousands','Hundreds','Tens','Units'];
+  const capped = Math.min(n, all.length);
+  return all.slice(all.length - capped);
+}
+
+function generateRandomAdd(n){
+  const min = Math.pow(10, n - 1);
+  const max = Math.pow(10, n) - 1;
+  const top = min + Math.floor(Math.random() * (max - min + 1));
+  const bottom = min + Math.floor(Math.random() * (max - min + 1));
+  return {
+    top: String(top).split('').map(Number),
+    bottom: String(bottom).split('').map(Number)
+  };
+}
+
+/* ---------- setup UI ---------- */
+let caMode = 'random';
+document.querySelectorAll('#ca-modePills .pill').forEach(b => {
+  b.addEventListener('click', () => {
+    caMode = b.dataset.mode;
+    document.querySelectorAll('#ca-modePills .pill').forEach(x => x.classList.toggle('active', x === b));
+  });
+});
+
+/* ---------- state ---------- */
+let colCount = 3;
+let topDigits = [];      // fixed top digits, left-to-right (index 0 = most significant)
+let bottomDigits = [];   // fixed bottom digits, left-to-right
+let carryDigits = [];    // per column: the confirmed carry digit sitting above it (null if none)
+let carryConfirmed = []; // per column: true once that carry space has been checked and locked in
+let solvedAnswer = [];   // per column: the confirmed answer digit, or null
+let finalCarryDigit = null;    // the leading overflow digit if the sum needs one more digit than colCount, else null
+let finalCarryConfirmed = false; // true once the overflow space has been checked and locked in
+let composeMode = false; // true while pupils are typing their own numbers into the empty template
+let numbersValid = false;
+let colState = 'chooseStart'; // 'enterNumbers' -> 'solving' -> 'finished'
+let activeCol = null;     // index (0 = leftmost / most significant) of the column being solved
+let hasMadeError = false; // true once the pupil has got something wrong in this sum — reveals the sum for the rest of it
+
+document.getElementById('ca-startBtn').addEventListener('click', () => {
+  const digitInput = document.getElementById('ca-digitCountInput');
+  let requested = parseInt(digitInput.value, 10);
+  if (isNaN(requested)) requested = 3;
+  requested = Math.max(2, Math.min(8, requested));
+  digitInput.value = requested;
+  colCount = requested;
+  hasMadeError = false;
+  solvedAnswer = new Array(colCount).fill(null);
+  carryDigits = new Array(colCount).fill(null);
+  carryConfirmed = new Array(colCount).fill(false);
+  finalCarryDigit = null;
+  finalCarryConfirmed = false;
+
+  if (caMode === 'random'){
+    const gen = generateRandomAdd(colCount);
+    topDigits = gen.top;
+    bottomDigits = gen.bottom;
+    composeMode = false;
+    numbersValid = true;
+    colState = 'solving';
+    activeCol = colCount - 1;
+  } else {
+    topDigits = new Array(colCount).fill(null);
+    bottomDigits = new Array(colCount).fill(null);
+    composeMode = true;
+    numbersValid = false;
+    colState = 'enterNumbers';
+    activeCol = null;
+  }
+
+  document.getElementById('ca-setup').style.display = 'none';
+  document.getElementById('ca-presentation').style.display = 'block';
+  render();
+});
+
+document.getElementById('ca-resetBtn').addEventListener('click', () => {
+  hasMadeError = false;
+  document.getElementById('ca-presentation').style.display = 'none';
+  document.getElementById('ca-setup').style.display = 'block';
+});
+
+document.getElementById('ca-numbersCheckBtn').addEventListener('click', finalizeNumbers);
+document.getElementById('ca-checkBtn').addEventListener('click', doCheck);
+
+/* ---------- grid building ---------- */
+function carryCellHTML(i){
+  const col = i + 3;
+  if (composeMode || !numbersValid || i === colCount - 1){
+    return `<div style="grid-row:1;grid-column:${col};"></div>`;
+  }
+  if (carryConfirmed[i]){
+    const val = carryDigits[i];
+    return `<div class="carryCell" style="grid-row:1;grid-column:${col};">${val ? val : ''}</div>`;
+  }
+  if (colState === 'solving'){
+    return `<div style="grid-row:1;grid-column:${col};"><input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="carryInput" id="ca-carryInput${i}"></div>`;
+  }
+  return `<div style="grid-row:1;grid-column:${col};"></div>`;
+}
+
+function topCellHTML(i){
+  const col = i + 3;
+  if (composeMode){
+    return `<input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subComposeInput" id="ca-composeTop${i}" style="grid-row:2;grid-column:${col};">`;
+  }
+  const isActive = colState === 'solving' && i === activeCol;
+  const classes = ['subDigitCell', 'top'];
+  if (isActive) classes.push('isActive');
+  return `<div class="${classes.join(' ')}" style="grid-row:2;grid-column:${col};">${topDigits[i]}</div>`;
+}
+
+function bottomCellHTML(i){
+  const col = i + 3;
+  if (composeMode){
+    return `<input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subComposeInput" id="ca-composeBottom${i}" style="grid-row:3;grid-column:${col};">`;
+  }
+  const isActive = colState === 'solving' && i === activeCol;
+  const classes = ['subDigitCell', 'bottom'];
+  if (isActive) classes.push('isActive');
+  return `<div class="${classes.join(' ')}" style="grid-row:3;grid-column:${col};">${bottomDigits[i]}</div>`;
+}
+
+function answerCellHTML(i){
+  const col = i + 3;
+  if (composeMode || !numbersValid){
+    return `<div class="subAnswerCell placeholder" style="grid-row:5;grid-column:${col};">0</div>`;
+  }
+  if (colState === 'solving' && i === activeCol){
+    return `<div style="grid-row:5;grid-column:${col};"><input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="off" class="subAnswerInput" id="ca-answerInput"></div>`;
+  }
+  if (solvedAnswer[i] !== null && solvedAnswer[i] !== undefined){
+    return `<div class="subAnswerCell" style="grid-row:5;grid-column:${col};">${solvedAnswer[i]}</div>`;
+  }
+  return `<div class="subAnswerCell placeholder" style="grid-row:5;grid-column:${col};">0</div>`;
+}
+
+function overflowCellHTML(){
+  if (composeMode || !numbersValid){
+    return `<div style="grid-row:5;grid-column:1;"></div>`;
+  }
+  if (finalCarryConfirmed){
+    return `<div class="subAnswerCell" style="grid-row:5;grid-column:1;">${finalCarryDigit ? finalCarryDigit : ''}</div>`;
+  }
+  if (colState === 'solving'){
+    return `<div style="grid-row:5;grid-column:1;"><input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subAnswerInput" id="ca-finalCarryInput"></div>`;
+  }
+  return `<div style="grid-row:5;grid-column:1;"></div>`;
+}
+
+function buildGridHTML(){
+  let html = '';
+
+  html += `<div style="grid-row:1;grid-column:1;"></div>`;
+  html += `<div style="grid-row:1;grid-column:2;"></div>`;
+  for (let i = 0; i < colCount; i++) html += carryCellHTML(i);
+
+  html += `<div style="grid-row:2;grid-column:1;"></div>`;
+  html += `<div style="grid-row:2;grid-column:2;"></div>`;
+  for (let i = 0; i < colCount; i++) html += topCellHTML(i);
+
+  html += `<div style="grid-row:3;grid-column:1;"></div>`;
+  html += `<div class="subOpCell" style="grid-row:3;grid-column:2;">+</div>`;
+  for (let i = 0; i < colCount; i++) html += bottomCellHTML(i);
+
+  html += `<div class="subRule" style="grid-row:4;grid-column:3 / ${colCount + 3};"></div>`;
+
+  html += overflowCellHTML();
+  html += `<div style="grid-row:5;grid-column:2;"></div>`;
+  for (let i = 0; i < colCount; i++) html += answerCellHTML(i);
+
+  return html;
+}
+
+function attachGridHandlers(){
+  if (!composeMode){
+    if (colState === 'solving'){
+      const grid = document.getElementById('ca-subGrid');
+      grid.querySelectorAll('.carryInput, .subAnswerInput').forEach(el => {
+        el.addEventListener('input', () => {
+          el.value = el.value.replace(/[^0-9]/g, '').slice(0, 1);
+        });
+        el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheck(); });
+      });
+    }
+    return;
+  }
+  const order = [];
+  for (let i = 0; i < colCount; i++) order.push(`ca-composeTop${i}`);
+  for (let i = 0; i < colCount; i++) order.push(`ca-composeBottom${i}`);
+
+  order.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      el.value = el.value.replace(/[^0-9]/g, '').slice(-1);
+      if (el.value !== '' && idx < order.length - 1){
+        const next = document.getElementById(order[idx + 1]);
+        if (next) next.focus();
+      }
+    });
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter'){ finalizeNumbers(); return; }
+      if (e.key === 'Backspace' && el.value === '' && idx > 0){
+        const prev = document.getElementById(order[idx - 1]);
+        if (prev){ prev.value = ''; prev.focus(); }
+      }
+    });
+  });
+
+  const first = document.getElementById('ca-composeTop0');
+  if (first) setTimeout(() => first.focus(), 30);
+}
+
+/* ---------- number entry (custom mode) ---------- */
+function finalizeNumbers(){
+  const feedback = document.getElementById('ca-numbersFeedback');
+  const N = colCount;
+  const topVals = [], bottomVals = [];
+  for (let i = 0; i < N; i++){
+    const te = document.getElementById(`ca-composeTop${i}`);
+    const be = document.getElementById(`ca-composeBottom${i}`);
+    const tv = parseInt(te.value, 10);
+    const bv = parseInt(be.value, 10);
+    if (isNaN(tv) || tv < 0 || tv > 9 || isNaN(bv) || bv < 0 || bv > 9){
+      feedback.textContent = 'Fill in every box with a single digit (0–9).';
+      feedback.className = 'checkFeedback bad';
+      return;
+    }
+    topVals.push(tv); bottomVals.push(bv);
+  }
+  if (topVals[0] === 0 || bottomVals[0] === 0){
+    feedback.textContent = `Make sure both numbers are genuine ${N}-digit numbers (no leading zero).`;
+    feedback.className = 'checkFeedback bad';
+    return;
+  }
+
+  feedback.textContent = '';
+  feedback.className = 'checkFeedback';
+  topDigits = topVals.slice();
+  bottomDigits = bottomVals.slice();
+  solvedAnswer = new Array(N).fill(null);
+  carryDigits = new Array(N).fill(null);
+  carryConfirmed = new Array(N).fill(false);
+  finalCarryDigit = null;
+  finalCarryConfirmed = false;
+  composeMode = false;
+  numbersValid = true;
+  colState = 'solving';
+  activeCol = N - 1;
+  hasMadeError = false;
+  render();
+}
+
+/* ---------- solving ---------- */
+function doCheck(){
+  if (colState !== 'solving') return;
+  const checkFeedback = document.getElementById('ca-checkFeedback');
+
+  const i = activeCol;
+  const answerInput = document.getElementById('ca-answerInput');
+  if (!answerInput) return;
+  const val = parseInt(answerInput.value, 10);
+  if (isNaN(val)){
+    checkFeedback.textContent = 'Type a number in the box first.';
+    checkFeedback.className = 'checkFeedback bad';
+    return;
+  }
+
+  const carryIn = carryDigits[i] || 0;
+  const sum = topDigits[i] + bottomDigits[i] + carryIn;
+  const correctAnswer = sum % 10;
+  const carryOut = Math.floor(sum / 10);
+
+  // the carry/overflow space this column's carry-out belongs in
+  const isOverflow = i === 0;
+  const carryInput = isOverflow
+    ? document.getElementById('ca-finalCarryInput')
+    : document.getElementById(`ca-carryInput${i - 1}`);
+  const rawCarry = carryInput ? carryInput.value.trim() : '';
+  const carryVal = rawCarry === '' ? 0 : parseInt(rawCarry, 10);
+
+  const answerOk = val === correctAnswer;
+  const carryOk = carryVal === carryOut;
+
+  if (answerOk && carryOk){
+    checkFeedback.textContent = 'Correct!';
+    checkFeedback.className = 'checkFeedback good';
+    solvedAnswer[i] = val;
+    if (isOverflow){
+      finalCarryDigit = carryOut === 1 ? 1 : null;
+      finalCarryConfirmed = true;
+      colState = 'finished';
+    } else {
+      carryDigits[i - 1] = carryOut === 1 ? 1 : null;
+      carryConfirmed[i - 1] = true;
+      activeCol = i - 1;
+    }
+    setTimeout(render, 350);
+    return;
+  }
+
+  hasMadeError = true;
+  updateQuestionLabel();
+  if (!answerOk && sum >= 10 && val === sum){
+    checkFeedback.textContent = "That's the full total for this column. Write just the last digit here, and carry the other digit into the box above the next column.";
+  } else if (!answerOk && carryOk){
+    checkFeedback.textContent = 'Not quite — check the answer digit and try again.';
+  } else if (answerOk && !carryOk){
+    checkFeedback.textContent = carryOut === 1
+      ? "The answer digit is right, but this column totals 10 or more — don't forget to carry the ten."
+      : 'The answer digit is right, but check the carry space — this column doesn\'t need one.';
+  } else {
+    checkFeedback.textContent = 'Not quite — try again.';
+  }
+  checkFeedback.className = 'checkFeedback bad';
+  if (!answerOk) answerInput.value = '';
+  if (!carryOk && carryInput) carryInput.value = '';
+  if (!answerOk) answerInput.focus();
+  else if (carryInput) carryInput.focus();
+}
+
+function updateQuestionLabel(){
+  const questionLabel = document.getElementById('ca-questionLabel');
+  if (!questionLabel || composeMode) return;
+  const topNum = parseInt(topDigits.join(''), 10);
+  const bottomNum = parseInt(bottomDigits.join(''), 10);
+  if (hasMadeError || colState === 'finished'){
+    questionLabel.textContent = `${topNum} + ${bottomNum}`;
+  } else {
+    questionLabel.textContent = '';
+  }
+}
+
+function renderFinish(){
+  const topNum = parseInt(topDigits.join(''), 10);
+  const bottomNum = parseInt(bottomDigits.join(''), 10);
+  const answerNum = topNum + bottomNum;
+  return `<div class="finishBox">
+    <div class="headline">Solved!</div>
+    <p><span class="n">${topNum}</span> + <span class="n">${bottomNum}</span> = <span class="ans">${answerNum}</span></p>
+  </div>`;
+}
+
+/* ---------- main render ---------- */
+function render(){
+  const grid = document.getElementById('ca-subGrid');
+  const numbersFeedback = document.getElementById('ca-numbersFeedback');
+  const numbersActionRow = document.getElementById('ca-numbersActionRow');
+  const stagePrompt = document.getElementById('ca-stagePrompt');
+  const quotHint = document.getElementById('ca-quotHint');
+  const checkRow = document.getElementById('ca-checkRow');
+  const checkFeedback = document.getElementById('ca-checkFeedback');
+  const finishHost = document.getElementById('ca-finishHost');
+
+  const narrowScreen = window.innerWidth < 480;
+  const colPx = narrowScreen ? 50 : 66;
+  const leadPx = narrowScreen ? 30 : 40;
+  grid.style.gridTemplateColumns = `${colPx}px ${leadPx}px ` + Array(colCount).fill(`${colPx}px`).join(' ');
+  grid.innerHTML = buildGridHTML();
+  attachGridHandlers();
+
+  if (composeMode){
+    document.getElementById('ca-questionLabel').textContent = 'Build your own addition below';
+    numbersFeedback.textContent = numbersFeedback.textContent || '';
+    numbersActionRow.style.display = 'flex';
+    stagePrompt.textContent = '';
+    quotHint.textContent = 'Fill in every box with a single digit, then press "Check numbers".';
+    checkRow.style.display = 'none';
+    checkFeedback.textContent = '';
+    finishHost.innerHTML = '';
+    return;
+  }
+
+  numbersActionRow.style.display = 'none';
+  numbersFeedback.textContent = '';
+  updateQuestionLabel();
+
+  if (colState === 'solving'){
+    const labels = columnLabelsFor(colCount);
+    const label = labels[activeCol];
+    stagePrompt.innerHTML = hasMadeError
+      ? `<span class="n">${label}</span> column: ${topDigits[activeCol]} + ${bottomDigits[activeCol]}${carryDigits[activeCol] ? ' + ' + carryDigits[activeCol] : ''}`
+      : `<span class="n">${label}</span> column`;
+    quotHint.textContent = activeCol === 0
+      ? 'Type your answer below the line. If it carries, write that digit in the box on the far left too — then check them together.'
+      : 'Type your answer below the line. If this column totals 10 or more, write the carried ten in the small box above the next column too — then check them together.';
+    checkRow.style.display = 'flex';
+    checkFeedback.textContent = '';
+    checkFeedback.className = 'checkFeedback';
+    finishHost.innerHTML = '';
+    const answerInput = document.getElementById('ca-answerInput');
+    if (answerInput) setTimeout(() => answerInput.focus(), 30);
     return;
   }
 
