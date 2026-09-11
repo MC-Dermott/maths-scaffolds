@@ -602,6 +602,33 @@
     .carryCell, .carryInput{ width:50px; font-size:15px; height:22px; line-height:22px; }
   }
 
+  /* ---- L-shape perimeter tool specific styles ---- */
+  .shapeLabel{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:700;
+    font-size: 19px;
+  }
+  .shapeInput{
+    box-sizing:border-box;
+    width:100%; height:100%;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:18px; font-weight:700;
+    text-align:center;
+    padding:4px 2px;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    background:#fff; color:var(--ink); outline:none;
+  }
+  .shapeInput:focus{ border-color: var(--mark-deep); }
+  .shapeInput.correct{ border-color: var(--good); color: var(--good); background: var(--good-tint); }
+  .shapeInput.wrong{ border-color: var(--bad); color: var(--bad); background: var(--bad-tint); }
+  .shapeInput::-webkit-outer-spin-button, .shapeInput::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+
+  @media (max-width:480px){
+    .shapeLabel{ font-size:15px; }
+    .shapeInput{ font-size:14px; }
+  }
+
   /* ---- hub / home screen ---- */
 
   #home{ max-width: 720px; margin: 0 auto; }
@@ -661,6 +688,11 @@
       <span class="cardIcon">➕</span>
       <h2>Chimney sum addition</h2>
       <p>Column addition with carrying — write the carried digit in the small space above the next column as you work through each column.</p>
+    </div>
+    <div class="scaffoldCard" onclick="showApp('ls-app')">
+      <span class="cardIcon">📐</span>
+      <h2>L-shape perimeter</h2>
+      <p>Work out the two missing sides on an L-shaped diagram, then add all six sides together to find the perimeter.</p>
     </div>
   </div>
 </div>
@@ -896,6 +928,79 @@
 </div>
 </div>
 
+<div class="appContainer" id="ls-app">
+  <div class="wrap">
+    <button class="backBtn" onclick="showHome()">&larr; Back to menu</button>
+  </div>
+<div class="wrap" style="margin-top:0">
+  <h1>L-shape perimeter</h1>
+  <p class="sub">Generates an L-shaped diagram with two sides missing, or lets pupils build their own — work out the missing sides first, then add all six sides to find the perimeter.</p>
+
+  <div class="panel" id="ls-setup">
+    <div class="field">
+      <label>Question source</label>
+      <div class="pills" id="ls-modePills">
+        <button class="pill active" data-mode="random">Random question</button>
+        <button class="pill" data-mode="custom">My own numbers</button>
+      </div>
+    </div>
+
+    <div id="ls-customOptions" style="display:none">
+      <div class="field">
+        <label>Which corner is cut away?</label>
+        <div class="pills" id="ls-orientationPills">
+          <button class="pill active" data-orient="BR">Bottom right</button>
+          <button class="pill" data-orient="BL">Bottom left</button>
+          <button class="pill" data-orient="TR">Top right</button>
+          <button class="pill" data-orient="TL">Top left</button>
+        </div>
+      </div>
+      <div class="field" style="display:flex; gap:14px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:130px;">
+          <label for="ls-widthInput">Overall width</label>
+          <input id="ls-widthInput" type="number" inputmode="numeric" min="4" max="60" value="15" style="width:100%; font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
+        </div>
+        <div style="flex:1; min-width:130px;">
+          <label for="ls-heightInput">Overall height</label>
+          <input id="ls-heightInput" type="number" inputmode="numeric" min="4" max="60" value="18" style="width:100%; font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
+        </div>
+        <div style="flex:1; min-width:130px;">
+          <label for="ls-notchWInput">Notch width</label>
+          <input id="ls-notchWInput" type="number" inputmode="numeric" min="1" max="55" value="6" style="width:100%; font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
+        </div>
+        <div style="flex:1; min-width:130px;">
+          <label for="ls-notchHInput">Notch height</label>
+          <input id="ls-notchHInput" type="number" inputmode="numeric" min="1" max="55" value="9" style="width:100%; font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
+        </div>
+      </div>
+    </div>
+
+    <button class="btn" id="ls-startBtn">Start</button>
+  </div>
+
+  <div class="panel" id="ls-presentation">
+    <p class="stagePrompt" id="ls-stagePrompt"></p>
+
+    <div id="ls-svgHost"></div>
+
+    <div id="ls-perimeterHost"></div>
+
+    <div class="checkRow" id="ls-checkRow" style="display:none">
+      <button class="btn" id="ls-checkBtn">Check</button>
+    </div>
+    <div class="checkFeedback" id="ls-checkFeedback"></div>
+
+    <div id="ls-finishHost"></div>
+
+    <div class="controls">
+      <button class="btn secondary" id="ls-resetBtn">New question</button>
+    </div>
+  </div>
+
+  <p class="foot">Work out the two missing sides first and type them straight onto the diagram, then add all six sides together to find the perimeter.</p>
+</div>
+</div>
+
 <script>
 function showApp(id){
   document.getElementById('home').style.display = 'none';
@@ -903,6 +1008,7 @@ function showApp(id){
   document.getElementById('bs-app').style.display = 'none';
   document.getElementById('cs-app').style.display = 'none';
   document.getElementById('ca-app').style.display = 'none';
+  document.getElementById('ls-app').style.display = 'none';
   document.getElementById(id).style.display = 'block';
   window.scrollTo(0,0);
 }
@@ -2578,6 +2684,309 @@ function render(){
   if (colState === 'finished'){
     stagePrompt.textContent = '';
     quotHint.textContent = '';
+    checkRow.style.display = 'none';
+    checkFeedback.textContent = '';
+    finishHost.innerHTML = renderFinish();
+  }
+}
+})();
+</script>
+
+<script>
+(function(){
+/* ---------- L-shape perimeter engine ---------- */
+
+function randInt(min, max){ return min + Math.floor(Math.random() * (max - min + 1)); }
+
+/* Builds the 6-vertex L-shape polygon for a given corner orientation, then
+   works out each edge's length, whether it's given or must be derived, and
+   which side of the edge its label/input should sit on. An edge is "given"
+   if it's an interior (notch) edge, or a boundary edge that spans the full
+   width/height of the bounding box; the two boundary edges that only span
+   part of it are the ones the pupil has to work out. */
+function buildShape(orientation, W, H, w, h){
+  let verts;
+  switch (orientation){
+    case 'BR': verts = [{x:0,y:0},{x:W,y:0},{x:W,y:H-h},{x:W-w,y:H-h},{x:W-w,y:H},{x:0,y:H}]; break;
+    case 'BL': verts = [{x:0,y:0},{x:0,y:H-h},{x:w,y:H-h},{x:w,y:H},{x:W,y:H},{x:W,y:0}]; break;
+    case 'TR': verts = [{x:0,y:0},{x:0,y:H},{x:W,y:H},{x:W,y:h},{x:W-w,y:h},{x:W-w,y:0}]; break;
+    case 'TL': verts = [{x:w,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H},{x:0,y:h},{x:w,y:h}]; break;
+  }
+  const n = verts.length;
+  const edgeLengths = [], givenFlags = [], offsets = [];
+  for (let i = 0; i < n; i++){
+    const p1 = verts[i], p2 = verts[(i + 1) % n];
+    const horizontal = p1.y === p2.y;
+    const length = horizontal ? Math.abs(p2.x - p1.x) : Math.abs(p2.y - p1.y);
+    edgeLengths.push(length);
+
+    let given, offset;
+    if (horizontal){
+      const boundary = (p1.y === 0 || p1.y === H);
+      given = boundary ? (length === W) : true;
+      offset = boundary ? (p1.y === 0 ? 'up' : 'down') : ((orientation === 'BR' || orientation === 'BL') ? 'down' : 'up');
+    } else {
+      const boundary = (p1.x === 0 || p1.x === W);
+      given = boundary ? (length === H) : true;
+      offset = boundary ? (p1.x === 0 ? 'left' : 'right') : ((orientation === 'BR' || orientation === 'TR') ? 'right' : 'left');
+    }
+    givenFlags.push(given);
+    offsets.push(offset);
+  }
+  const derivedIdx = [];
+  givenFlags.forEach((g, i) => { if (!g) derivedIdx.push(i); });
+  return { vertices: verts, edgeLengths, givenFlags, offsets, derivedIdx };
+}
+
+/* ---------- setup UI ---------- */
+let lsMode = 'random';
+document.querySelectorAll('#ls-modePills .pill').forEach(b => {
+  b.addEventListener('click', () => {
+    lsMode = b.dataset.mode;
+    document.querySelectorAll('#ls-modePills .pill').forEach(x => x.classList.toggle('active', x === b));
+    document.getElementById('ls-customOptions').style.display = lsMode === 'custom' ? 'block' : 'none';
+  });
+});
+let lsOrientChoice = 'BR';
+document.querySelectorAll('#ls-orientationPills .pill').forEach(b => {
+  b.addEventListener('click', () => {
+    lsOrientChoice = b.dataset.orient;
+    document.querySelectorAll('#ls-orientationPills .pill').forEach(x => x.classList.toggle('active', x === b));
+  });
+});
+
+/* ---------- state ---------- */
+let W, H, w, h;
+let shape = null;          // { vertices, edgeLengths, givenFlags, offsets, derivedIdx }
+let solvedSides = [];      // per edge index: confirmed value once solved, else null
+let stage = 'findMissing'; // 'findMissing' -> 'perimeter' -> 'finished'
+
+document.getElementById('ls-startBtn').addEventListener('click', () => {
+  let orientation;
+  if (lsMode === 'random'){
+    orientation = ['BR', 'BL', 'TR', 'TL'][Math.floor(Math.random() * 4)];
+    W = randInt(10, 26);
+    H = randInt(10, 26);
+    w = randInt(2, W - 3);
+    h = randInt(2, H - 3);
+  } else {
+    orientation = lsOrientChoice;
+    const wIn = parseInt(document.getElementById('ls-widthInput').value, 10);
+    const hIn = parseInt(document.getElementById('ls-heightInput').value, 10);
+    const nwIn = parseInt(document.getElementById('ls-notchWInput').value, 10);
+    const nhIn = parseInt(document.getElementById('ls-notchHInput').value, 10);
+    if ([wIn, hIn, nwIn, nhIn].some(v => isNaN(v) || v < 1)){
+      alert('Fill in every box with a whole number of 1 or more.');
+      return;
+    }
+    if (nwIn >= wIn || nhIn >= hIn){
+      alert('The notch has to be smaller than the overall width and height.');
+      return;
+    }
+    W = wIn; H = hIn; w = nwIn; h = nhIn;
+  }
+
+  shape = buildShape(orientation, W, H, w, h);
+  solvedSides = new Array(shape.edgeLengths.length).fill(null);
+  shape.givenFlags.forEach((g, i) => { if (g) solvedSides[i] = shape.edgeLengths[i]; });
+  stage = 'findMissing';
+
+  document.getElementById('ls-setup').style.display = 'none';
+  document.getElementById('ls-presentation').style.display = 'block';
+  render();
+});
+
+document.getElementById('ls-resetBtn').addEventListener('click', () => {
+  document.getElementById('ls-presentation').style.display = 'none';
+  document.getElementById('ls-setup').style.display = 'block';
+});
+
+document.getElementById('ls-checkBtn').addEventListener('click', () => {
+  if (stage === 'findMissing') doCheckMissing();
+  else if (stage === 'perimeter') doCheckPerimeter();
+});
+
+/* ---------- geometry -> pixels ---------- */
+const CANVAS = 420, PAD = 78;
+function scaleFor(){
+  return Math.min((CANVAS - 2 * PAD) / W, (CANVAS - 2 * PAD) / H);
+}
+function toPx(pt){
+  const scale = scaleFor();
+  const shapeW = W * scale, shapeH = H * scale;
+  const offX = (CANVAS - shapeW) / 2;
+  const offY = (CANVAS - shapeH) / 2;
+  return { x: offX + pt.x * scale, y: offY + pt.y * scale };
+}
+
+/* ---------- rendering ---------- */
+function buildSVG(){
+  const pts = shape.vertices.map(toPx);
+  const pathD = 'M ' + pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' L ') + ' Z';
+
+  let svg = `<svg viewBox="0 0 ${CANVAS} ${CANVAS}" xmlns="http://www.w3.org/2000/svg">`;
+  svg += `<path d="${pathD}" fill="#fffdf9" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>`;
+
+  shape.edgeLengths.forEach((len, i) => {
+    const p1 = toPx(shape.vertices[i]);
+    const p2 = toPx(shape.vertices[(i + 1) % shape.vertices.length]);
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const dir = shape.offsets[i];
+    const solved = solvedSides[i];
+
+    if (solved !== null){
+      let x = mid.x, y = mid.y, anchor = 'middle';
+      if (dir === 'up'){ y = mid.y - 14; }
+      else if (dir === 'down'){ y = mid.y + 26; }
+      else if (dir === 'left'){ x = mid.x - 12; anchor = 'end'; y = mid.y + 6; }
+      else if (dir === 'right'){ x = mid.x + 12; anchor = 'start'; y = mid.y + 6; }
+      const fillColor = shape.givenFlags[i] ? 'var(--ink)' : 'var(--good)';
+      svg += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" fill="${fillColor}" class="shapeLabel">${solved}</text>`;
+    } else {
+      const boxW = 52, boxH = 30;
+      let x = mid.x - boxW / 2, y = mid.y - boxH / 2;
+      if (dir === 'up'){ x = mid.x - boxW / 2; y = mid.y - 12 - boxH; }
+      else if (dir === 'down'){ x = mid.x - boxW / 2; y = mid.y + 12; }
+      else if (dir === 'left'){ x = mid.x - 12 - boxW; y = mid.y - boxH / 2; }
+      else if (dir === 'right'){ x = mid.x + 12; y = mid.y - boxH / 2; }
+      svg += `<foreignObject x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${boxW}" height="${boxH}">`;
+      svg += `<input xmlns="http://www.w3.org/1999/xhtml" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="shapeInput" id="ls-sideInput${i}">`;
+      svg += `</foreignObject>`;
+    }
+  });
+
+  svg += `</svg>`;
+  return svg;
+}
+
+function attachSVGHandlers(){
+  if (!shape) return;
+  shape.derivedIdx.forEach(i => {
+    const el = document.getElementById(`ls-sideInput${i}`);
+    if (!el) return;
+    el.addEventListener('input', () => { el.value = el.value.replace(/[^0-9]/g, '').slice(0, 3); });
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheckMissing(); });
+  });
+  if (stage === 'findMissing'){
+    const first = document.getElementById(`ls-sideInput${shape.derivedIdx[0]}`);
+    if (first) setTimeout(() => first.focus(), 30);
+  }
+}
+
+/* ---------- solving ---------- */
+function doCheckMissing(){
+  const checkFeedback = document.getElementById('ls-checkFeedback');
+  const idxs = shape.derivedIdx;
+  const inputs = idxs.map(i => document.getElementById(`ls-sideInput${i}`));
+  if (inputs.some(inp => !inp)) return;
+  const vals = inputs.map(inp => parseInt(inp.value, 10));
+  if (vals.some(v => isNaN(v))){
+    checkFeedback.textContent = 'Fill in both missing sides first.';
+    checkFeedback.className = 'checkFeedback bad';
+    return;
+  }
+  const oks = idxs.map((edgeIdx, k) => vals[k] === shape.edgeLengths[edgeIdx]);
+
+  if (oks.every(Boolean)){
+    checkFeedback.textContent = 'Correct!';
+    checkFeedback.className = 'checkFeedback good';
+    idxs.forEach(edgeIdx => { solvedSides[edgeIdx] = shape.edgeLengths[edgeIdx]; });
+    stage = 'perimeter';
+    setTimeout(render, 400);
+    return;
+  }
+
+  const rightCount = oks.filter(Boolean).length;
+  checkFeedback.textContent = rightCount === 1
+    ? 'One of those is right — check the other side again.'
+    : 'Not quite — try both again.';
+  checkFeedback.className = 'checkFeedback bad';
+  idxs.forEach((edgeIdx, k) => { if (!oks[k]) inputs[k].value = ''; });
+  const firstWrong = inputs.find((inp, k) => !oks[k]);
+  if (firstWrong) firstWrong.focus();
+}
+
+function doCheckPerimeter(){
+  const checkFeedback = document.getElementById('ls-checkFeedback');
+  const input = document.getElementById('ls-perimeterInput');
+  if (!input) return;
+  const val = parseInt(input.value, 10);
+  if (isNaN(val)){
+    checkFeedback.textContent = 'Type the perimeter first.';
+    checkFeedback.className = 'checkFeedback bad';
+    return;
+  }
+  const total = shape.edgeLengths.reduce((a, b) => a + b, 0);
+  if (val === total){
+    checkFeedback.textContent = 'Correct!';
+    checkFeedback.className = 'checkFeedback good';
+    input.className = 'blankInput correct';
+    input.disabled = true;
+    stage = 'finished';
+    setTimeout(render, 350);
+  } else {
+    checkFeedback.textContent = 'Not quite — add all six sides again.';
+    checkFeedback.className = 'checkFeedback bad';
+    input.value = '';
+    input.className = 'blankInput wrong';
+    input.focus();
+  }
+}
+
+function renderFinish(){
+  const total = shape.edgeLengths.reduce((a, b) => a + b, 0);
+  const sumStr = shape.edgeLengths.join(' + ');
+  return `<div class="finishBox">
+    <div class="headline">Solved!</div>
+    <p>${sumStr} = <span class="ans">${total}</span></p>
+    <p>Perimeter = <span class="ans">${total}</span></p>
+  </div>`;
+}
+
+/* ---------- main render ---------- */
+function render(){
+  const svgHost = document.getElementById('ls-svgHost');
+  const perimeterHost = document.getElementById('ls-perimeterHost');
+  const stagePrompt = document.getElementById('ls-stagePrompt');
+  const checkRow = document.getElementById('ls-checkRow');
+  const checkFeedback = document.getElementById('ls-checkFeedback');
+  const finishHost = document.getElementById('ls-finishHost');
+
+  svgHost.innerHTML = buildSVG();
+  attachSVGHandlers();
+
+  if (stage === 'findMissing'){
+    stagePrompt.textContent = 'Two sides are missing — work them out and type them straight onto the shape.';
+    perimeterHost.innerHTML = '';
+    checkRow.style.display = 'flex';
+    checkFeedback.textContent = '';
+    checkFeedback.className = 'checkFeedback';
+    finishHost.innerHTML = '';
+    return;
+  }
+
+  if (stage === 'perimeter'){
+    stagePrompt.textContent = 'Now add all six sides to find the perimeter.';
+    perimeterHost.innerHTML = `
+      <div class="sentenceBox">
+        ${shape.edgeLengths.join(' + ')} = <input id="ls-perimeterInput" class="blankInput" type="text" inputmode="numeric" autocomplete="off" placeholder="?">
+      </div>
+    `;
+    const perimeterInput = document.getElementById('ls-perimeterInput');
+    if (perimeterInput){
+      perimeterInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheckPerimeter(); });
+      setTimeout(() => perimeterInput.focus(), 30);
+    }
+    checkRow.style.display = 'flex';
+    checkFeedback.textContent = '';
+    checkFeedback.className = 'checkFeedback';
+    finishHost.innerHTML = '';
+    return;
+  }
+
+  if (stage === 'finished'){
+    stagePrompt.textContent = '';
+    perimeterHost.innerHTML = '';
     checkRow.style.display = 'none';
     checkFeedback.textContent = '';
     finishHost.innerHTML = renderFinish();
