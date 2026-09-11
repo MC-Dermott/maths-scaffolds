@@ -2717,29 +2717,48 @@ function buildShape(orientation, W, H, w, h){
     case 'TL': verts = [{x:w,y:0},{x:W,y:0},{x:W,y:H},{x:0,y:H},{x:0,y:h},{x:w,y:h}]; break;
   }
   const n = verts.length;
-  const edgeLengths = [], givenFlags = [], offsets = [];
+  const edgeLengths = [], givenFlags = [], offsets = [], boundaryFlags = [];
   for (let i = 0; i < n; i++){
     const p1 = verts[i], p2 = verts[(i + 1) % n];
     const horizontal = p1.y === p2.y;
     const length = horizontal ? Math.abs(p2.x - p1.x) : Math.abs(p2.y - p1.y);
     edgeLengths.push(length);
 
-    let given, offset;
+    let given, offset, boundary;
     if (horizontal){
-      const boundary = (p1.y === 0 || p1.y === H);
+      boundary = (p1.y === 0 || p1.y === H);
       given = boundary ? (length === W) : true;
       offset = boundary ? (p1.y === 0 ? 'up' : 'down') : ((orientation === 'BR' || orientation === 'BL') ? 'down' : 'up');
     } else {
-      const boundary = (p1.x === 0 || p1.x === W);
+      boundary = (p1.x === 0 || p1.x === W);
       given = boundary ? (length === H) : true;
       offset = boundary ? (p1.x === 0 ? 'left' : 'right') : ((orientation === 'BR' || orientation === 'TR') ? 'right' : 'left');
     }
     givenFlags.push(given);
     offsets.push(offset);
+    boundaryFlags.push(boundary);
   }
   const derivedIdx = [];
   givenFlags.forEach((g, i) => { if (!g) derivedIdx.push(i); });
-  return { vertices: verts, edgeLengths, givenFlags, offsets, derivedIdx };
+
+  /* The two interior (notch) edges always meet at the shape's reflex
+     corner. Labelling both at their exact midpoint crowds them together
+     whenever a notch dimension is small, so bias each one's label toward
+     its OTHER (non-shared) endpoint instead, and push them further out
+     than a normal boundary label so they clear each other even when both
+     notch dimensions are small at once. */
+  const labelT = new Array(n).fill(0.5);
+  const interior = new Array(n).fill(false);
+  const interiorIdx = [];
+  boundaryFlags.forEach((b, i) => { if (!b) interiorIdx.push(i); });
+  if (interiorIdx.length === 2){
+    labelT[interiorIdx[0]] = 0.18;
+    labelT[interiorIdx[1]] = 0.82;
+    interior[interiorIdx[0]] = true;
+    interior[interiorIdx[1]] = true;
+  }
+
+  return { vertices: verts, edgeLengths, givenFlags, offsets, derivedIdx, labelT, interior };
 }
 
 /* ---------- setup UI ---------- */
@@ -2860,14 +2879,16 @@ function buildSVG(){
   shape.edgeLengths.forEach((len, i) => {
     const p1 = toPx(shape.vertices[i]);
     const p2 = toPx(shape.vertices[(i + 1) % shape.vertices.length]);
-    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const t = shape.labelT[i];
+    const mid = { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t };
     const dir = shape.offsets[i];
+    const pad = shape.interior[i] ? 20 : 12;
 
     let x = mid.x, y = mid.y, anchor = 'middle';
-    if (dir === 'up'){ y = mid.y - 14; }
-    else if (dir === 'down'){ y = mid.y + 26; }
-    else if (dir === 'left'){ x = mid.x - 12; anchor = 'end'; y = mid.y + 6; }
-    else if (dir === 'right'){ x = mid.x + 12; anchor = 'start'; y = mid.y + 6; }
+    if (dir === 'up'){ y = mid.y - pad - 2; }
+    else if (dir === 'down'){ y = mid.y + pad + 14; }
+    else if (dir === 'left'){ x = mid.x - pad; anchor = 'end'; y = mid.y + 6; }
+    else if (dir === 'right'){ x = mid.x + pad; anchor = 'start'; y = mid.y + 6; }
 
     let text, fillColor;
     if (solvedSides[i] !== null){
