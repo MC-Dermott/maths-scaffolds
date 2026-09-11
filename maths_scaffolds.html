@@ -610,13 +610,13 @@
   }
   .shapeInput{
     box-sizing:border-box;
-    width:100%; height:100%;
+    width:110px;
     font-family:'IBM Plex Mono', monospace;
-    font-size:18px; font-weight:700;
+    font-size:20px; font-weight:700;
     text-align:center;
-    padding:4px 2px;
+    padding:9px 10px;
     border:1.5px solid var(--line);
-    border-radius:6px;
+    border-radius:7px;
     background:#fff; color:var(--ink); outline:none;
   }
   .shapeInput:focus{ border-color: var(--mark-deep); }
@@ -626,7 +626,6 @@
 
   @media (max-width:480px){
     .shapeLabel{ font-size:15px; }
-    .shapeInput{ font-size:14px; }
   }
 
   /* ---- hub / home screen ---- */
@@ -979,9 +978,14 @@
   </div>
 
   <div class="panel" id="ls-presentation">
-    <p class="stagePrompt" id="ls-stagePrompt"></p>
+    <div class="topRow">
+      <div class="questionLabel" id="ls-questionLabel"></div>
+    </div>
 
     <div id="ls-svgHost"></div>
+
+    <p class="stagePrompt" id="ls-stagePrompt"></p>
+    <div id="ls-answerHost"></div>
 
     <div id="ls-perimeterHost"></div>
 
@@ -2760,6 +2764,10 @@ let W, H, w, h;
 let shape = null;          // { vertices, edgeLengths, givenFlags, offsets, derivedIdx }
 let solvedSides = [];      // per edge index: confirmed value once solved, else null
 let stage = 'findMissing'; // 'findMissing' -> 'perimeter' -> 'finished'
+let missingQueue = [];     // the derived edge indices, in the order we'll solve them
+let missingStepIdx = 0;    // which one in missingQueue we're currently on
+let subStep = 'whole';     // 'whole' -> 'missing', per side in missingQueue
+let hintShown = false;
 
 document.getElementById('ls-startBtn').addEventListener('click', () => {
   let orientation;
@@ -2789,6 +2797,10 @@ document.getElementById('ls-startBtn').addEventListener('click', () => {
   shape = buildShape(orientation, W, H, w, h);
   solvedSides = new Array(shape.edgeLengths.length).fill(null);
   shape.givenFlags.forEach((g, i) => { if (g) solvedSides[i] = shape.edgeLengths[i]; });
+  missingQueue = shape.derivedIdx.slice();
+  missingStepIdx = 0;
+  subStep = 'whole';
+  hintShown = false;
   stage = 'findMissing';
 
   document.getElementById('ls-setup').style.display = 'none';
@@ -2802,8 +2814,12 @@ document.getElementById('ls-resetBtn').addEventListener('click', () => {
 });
 
 document.getElementById('ls-checkBtn').addEventListener('click', () => {
-  if (stage === 'findMissing') doCheckMissing();
-  else if (stage === 'perimeter') doCheckPerimeter();
+  if (stage === 'findMissing'){
+    if (subStep === 'whole') doCheckWhole();
+    else doCheckMissingLen();
+  } else if (stage === 'perimeter'){
+    doCheckPerimeter();
+  }
 });
 
 /* ---------- geometry -> pixels ---------- */
@@ -2819,6 +2835,18 @@ function toPx(pt){
   return { x: offX + pt.x * scale, y: offY + pt.y * scale };
 }
 
+/* For a derived edge, the "whole" is the full width (W) or height (H) it's
+   part of, and the "part" is the notch dimension already accounted for —
+   the missing length is always whole minus part. */
+function breakdownFor(edgeIdx){
+  const p1 = shape.vertices[edgeIdx], p2 = shape.vertices[(edgeIdx + 1) % shape.vertices.length];
+  const horizontal = p1.y === p2.y;
+  const whole = horizontal ? W : H;
+  const missing = shape.edgeLengths[edgeIdx];
+  const part = whole - missing;
+  return { horizontal, whole, missing, part };
+}
+
 /* ---------- rendering ---------- */
 function buildSVG(){
   const pts = shape.vertices.map(toPx);
@@ -2827,83 +2855,105 @@ function buildSVG(){
   let svg = `<svg viewBox="0 0 ${CANVAS} ${CANVAS}" xmlns="http://www.w3.org/2000/svg">`;
   svg += `<path d="${pathD}" fill="#fffdf9" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>`;
 
+  const activeIdx = stage === 'findMissing' ? missingQueue[missingStepIdx] : null;
+
   shape.edgeLengths.forEach((len, i) => {
     const p1 = toPx(shape.vertices[i]);
     const p2 = toPx(shape.vertices[(i + 1) % shape.vertices.length]);
     const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
     const dir = shape.offsets[i];
-    const solved = solvedSides[i];
 
-    if (solved !== null){
-      let x = mid.x, y = mid.y, anchor = 'middle';
-      if (dir === 'up'){ y = mid.y - 14; }
-      else if (dir === 'down'){ y = mid.y + 26; }
-      else if (dir === 'left'){ x = mid.x - 12; anchor = 'end'; y = mid.y + 6; }
-      else if (dir === 'right'){ x = mid.x + 12; anchor = 'start'; y = mid.y + 6; }
-      const fillColor = shape.givenFlags[i] ? 'var(--ink)' : 'var(--good)';
-      svg += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" fill="${fillColor}" class="shapeLabel">${solved}</text>`;
+    let x = mid.x, y = mid.y, anchor = 'middle';
+    if (dir === 'up'){ y = mid.y - 14; }
+    else if (dir === 'down'){ y = mid.y + 26; }
+    else if (dir === 'left'){ x = mid.x - 12; anchor = 'end'; y = mid.y + 6; }
+    else if (dir === 'right'){ x = mid.x + 12; anchor = 'start'; y = mid.y + 6; }
+
+    let text, fillColor;
+    if (solvedSides[i] !== null){
+      text = solvedSides[i];
+      fillColor = shape.givenFlags[i] ? 'var(--ink)' : 'var(--good)';
     } else {
-      const boxW = 52, boxH = 30;
-      let x = mid.x - boxW / 2, y = mid.y - boxH / 2;
-      if (dir === 'up'){ x = mid.x - boxW / 2; y = mid.y - 12 - boxH; }
-      else if (dir === 'down'){ x = mid.x - boxW / 2; y = mid.y + 12; }
-      else if (dir === 'left'){ x = mid.x - 12 - boxW; y = mid.y - boxH / 2; }
-      else if (dir === 'right'){ x = mid.x + 12; y = mid.y - boxH / 2; }
-      svg += `<foreignObject x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${boxW}" height="${boxH}">`;
-      svg += `<input xmlns="http://www.w3.org/1999/xhtml" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="shapeInput" id="ls-sideInput${i}">`;
-      svg += `</foreignObject>`;
+      text = '?';
+      fillColor = (i === activeIdx) ? 'var(--mark-deep)' : 'var(--ink-soft)';
     }
+    svg += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" fill="${fillColor}" class="shapeLabel">${text}</text>`;
   });
 
   svg += `</svg>`;
   return svg;
 }
 
-function attachSVGHandlers(){
-  if (!shape) return;
-  shape.derivedIdx.forEach(i => {
-    const el = document.getElementById(`ls-sideInput${i}`);
-    if (!el) return;
-    el.addEventListener('input', () => { el.value = el.value.replace(/[^0-9]/g, '').slice(0, 3); });
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheckMissing(); });
-  });
-  if (stage === 'findMissing'){
-    const first = document.getElementById(`ls-sideInput${shape.derivedIdx[0]}`);
-    if (first) setTimeout(() => first.focus(), 30);
-  }
-}
-
 /* ---------- solving ---------- */
-function doCheckMissing(){
+function doCheckWhole(){
   const checkFeedback = document.getElementById('ls-checkFeedback');
-  const idxs = shape.derivedIdx;
-  const inputs = idxs.map(i => document.getElementById(`ls-sideInput${i}`));
-  if (inputs.some(inp => !inp)) return;
-  const vals = inputs.map(inp => parseInt(inp.value, 10));
-  if (vals.some(v => isNaN(v))){
-    checkFeedback.textContent = 'Fill in both missing sides first.';
+  const input = document.getElementById('ls-answerInput');
+  if (!input) return;
+  const val = parseInt(input.value, 10);
+  if (isNaN(val)){
+    checkFeedback.textContent = 'Type a number first.';
     checkFeedback.className = 'checkFeedback bad';
     return;
   }
-  const oks = idxs.map((edgeIdx, k) => vals[k] === shape.edgeLengths[edgeIdx]);
-
-  if (oks.every(Boolean)){
+  const bd = breakdownFor(missingQueue[missingStepIdx]);
+  if (val === bd.whole){
     checkFeedback.textContent = 'Correct!';
     checkFeedback.className = 'checkFeedback good';
-    idxs.forEach(edgeIdx => { solvedSides[edgeIdx] = shape.edgeLengths[edgeIdx]; });
-    stage = 'perimeter';
-    setTimeout(render, 400);
+    subStep = 'missing';
+    hintShown = false;
+    setTimeout(render, 350);
+  } else {
+    checkFeedback.textContent = bd.horizontal
+      ? 'Not quite — look at the full length across the top or bottom of the shape.'
+      : 'Not quite — look at the full length down the left or right of the shape.';
+    checkFeedback.className = 'checkFeedback bad';
+    input.value = '';
+    input.focus();
+  }
+}
+
+function doCheckMissingLen(){
+  const checkFeedback = document.getElementById('ls-checkFeedback');
+  const input = document.getElementById('ls-answerInput');
+  if (!input) return;
+  const val = parseInt(input.value, 10);
+  if (isNaN(val)){
+    checkFeedback.textContent = 'Type a number first.';
+    checkFeedback.className = 'checkFeedback bad';
     return;
   }
+  const edgeIdx = missingQueue[missingStepIdx];
+  const bd = breakdownFor(edgeIdx);
+  if (val === bd.missing){
+    checkFeedback.textContent = 'Correct!';
+    checkFeedback.className = 'checkFeedback good';
+    solvedSides[edgeIdx] = bd.missing;
+    missingStepIdx += 1;
+    if (missingStepIdx >= missingQueue.length){
+      stage = 'perimeter';
+    } else {
+      subStep = 'whole';
+      hintShown = false;
+    }
+    setTimeout(render, 400);
+  } else {
+    checkFeedback.textContent = 'Not quite — try again.';
+    checkFeedback.className = 'checkFeedback bad';
+    input.value = '';
+    input.focus();
+  }
+}
 
-  const rightCount = oks.filter(Boolean).length;
-  checkFeedback.textContent = rightCount === 1
-    ? 'One of those is right — check the other side again.'
-    : 'Not quite — try both again.';
-  checkFeedback.className = 'checkFeedback bad';
-  idxs.forEach((edgeIdx, k) => { if (!oks[k]) inputs[k].value = ''; });
-  const firstWrong = inputs.find((inp, k) => !oks[k]);
-  if (firstWrong) firstWrong.focus();
+/* Toggles the hint text in place, without rebuilding the answer input —
+   so a pupil's in-progress typing isn't lost when they check the hint. */
+function toggleHint(){
+  hintShown = !hintShown;
+  const hintBtn = document.getElementById('ls-hintBtn');
+  const hintText = document.getElementById('ls-hintText');
+  if (!hintBtn || !hintText) return;
+  const bd = breakdownFor(missingQueue[missingStepIdx]);
+  hintBtn.textContent = hintShown ? 'Hide hint' : 'Show hint';
+  hintText.textContent = hintShown ? `${bd.whole} − ${bd.part} = ?` : '';
 }
 
 function doCheckPerimeter(){
@@ -2946,6 +2996,8 @@ function renderFinish(){
 /* ---------- main render ---------- */
 function render(){
   const svgHost = document.getElementById('ls-svgHost');
+  const questionLabel = document.getElementById('ls-questionLabel');
+  const answerHost = document.getElementById('ls-answerHost');
   const perimeterHost = document.getElementById('ls-perimeterHost');
   const stagePrompt = document.getElementById('ls-stagePrompt');
   const checkRow = document.getElementById('ls-checkRow');
@@ -2953,10 +3005,42 @@ function render(){
   const finishHost = document.getElementById('ls-finishHost');
 
   svgHost.innerHTML = buildSVG();
-  attachSVGHandlers();
 
   if (stage === 'findMissing'){
-    stagePrompt.textContent = 'Two sides are missing — work them out and type them straight onto the shape.';
+    questionLabel.textContent = `Missing side ${missingStepIdx + 1} of ${missingQueue.length}`;
+    const bd = breakdownFor(missingQueue[missingStepIdx]);
+
+    if (subStep === 'whole'){
+      stagePrompt.textContent = bd.horizontal ? 'How wide is the shape?' : 'How tall is the shape?';
+      answerHost.innerHTML = `
+        <div class="answerRow">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="shapeInput" id="ls-answerInput">
+        </div>
+      `;
+    } else {
+      stagePrompt.textContent = 'So how long is the missing side?';
+      answerHost.innerHTML = `
+        <div class="answerRow" style="align-items:center;">
+          <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="shapeInput" id="ls-answerInput">
+          <button class="btn secondary small" id="ls-hintBtn">${hintShown ? 'Hide hint' : 'Show hint'}</button>
+        </div>
+        <div class="quotHint" id="ls-hintText">${hintShown ? `${bd.whole} &minus; ${bd.part} = ?` : ''}</div>
+      `;
+      const hintBtn = document.getElementById('ls-hintBtn');
+      if (hintBtn) hintBtn.addEventListener('click', toggleHint);
+    }
+
+    const answerInput = document.getElementById('ls-answerInput');
+    if (answerInput){
+      answerInput.addEventListener('input', () => {
+        answerInput.value = answerInput.value.replace(/[^0-9]/g, '').slice(0, 3);
+      });
+      answerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') (subStep === 'whole' ? doCheckWhole() : doCheckMissingLen());
+      });
+      setTimeout(() => answerInput.focus(), 30);
+    }
+
     perimeterHost.innerHTML = '';
     checkRow.style.display = 'flex';
     checkFeedback.textContent = '';
@@ -2965,8 +3049,11 @@ function render(){
     return;
   }
 
+  questionLabel.textContent = '';
+
   if (stage === 'perimeter'){
     stagePrompt.textContent = 'Now add all six sides to find the perimeter.';
+    answerHost.innerHTML = '';
     perimeterHost.innerHTML = `
       <div class="sentenceBox">
         ${shape.edgeLengths.join(' + ')} = <input id="ls-perimeterInput" class="blankInput" type="text" inputmode="numeric" autocomplete="off" placeholder="?">
@@ -2986,6 +3073,7 @@ function render(){
 
   if (stage === 'finished'){
     stagePrompt.textContent = '';
+    answerHost.innerHTML = '';
     perimeterHost.innerHTML = '';
     checkRow.style.display = 'none';
     checkFeedback.textContent = '';
