@@ -2875,8 +2875,19 @@ function buildSVG(){
   svg += `<path d="${pathD}" fill="#fffdf9" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>`;
 
   const activeIdx = stage === 'findMissing' ? missingQueue[missingStepIdx] : null;
+  let focusHorizontal = null;
+  if (activeIdx !== null){
+    const av1 = shape.vertices[activeIdx], av2 = shape.vertices[(activeIdx + 1) % shape.vertices.length];
+    focusHorizontal = av1.y === av2.y;
+  }
 
   shape.edgeLengths.forEach((len, i) => {
+    const v1 = shape.vertices[i], v2 = shape.vertices[(i + 1) % shape.vertices.length];
+    const edgeHorizontal = v1.y === v2.y;
+    // While solving one missing side, hide every label on the other axis
+    // so pupils aren't distracted by numbers that aren't relevant yet.
+    if (focusHorizontal !== null && edgeHorizontal !== focusHorizontal) return;
+
     const p1 = toPx(shape.vertices[i]);
     const p2 = toPx(shape.vertices[(i + 1) % shape.vertices.length]);
     const t = shape.labelT[i];
