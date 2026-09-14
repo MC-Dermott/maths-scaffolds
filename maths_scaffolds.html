@@ -2866,6 +2866,32 @@ function breakdownFor(edgeIdx){
   return { horizontal, whole, missing, part };
 }
 
+/* Which edge holds the "whole" (full width/height) number a given missing
+   edge is worked out from — the other boundary edge on the same axis. */
+function wholeEdgeIndexFor(edgeIdx){
+  const p1 = shape.vertices[edgeIdx], p2 = shape.vertices[(edgeIdx + 1) % shape.vertices.length];
+  const horizontal = p1.y === p2.y;
+  for (let j = 0; j < shape.vertices.length; j++){
+    if (j === edgeIdx || shape.interior[j] || !shape.givenFlags[j]) continue;
+    const q1 = shape.vertices[j], q2 = shape.vertices[(j + 1) % shape.vertices.length];
+    if ((q1.y === q2.y) === horizontal) return j;
+  }
+  return -1;
+}
+
+/* Which edge holds the "part" (notch) number a given missing edge is
+   worked out from — the interior edge on the same axis. */
+function partEdgeIndexFor(edgeIdx){
+  const p1 = shape.vertices[edgeIdx], p2 = shape.vertices[(edgeIdx + 1) % shape.vertices.length];
+  const horizontal = p1.y === p2.y;
+  for (let j = 0; j < shape.vertices.length; j++){
+    if (!shape.interior[j]) continue;
+    const q1 = shape.vertices[j], q2 = shape.vertices[(j + 1) % shape.vertices.length];
+    if ((q1.y === q2.y) === horizontal) return j;
+  }
+  return -1;
+}
+
 /* ---------- rendering ---------- */
 function buildSVG(){
   const pts = shape.vertices.map(toPx);
@@ -2876,9 +2902,16 @@ function buildSVG(){
 
   const activeIdx = stage === 'findMissing' ? missingQueue[missingStepIdx] : null;
   let focusHorizontal = null;
+  let highlightIdx = [];
   if (activeIdx !== null){
     const av1 = shape.vertices[activeIdx], av2 = shape.vertices[(activeIdx + 1) % shape.vertices.length];
     focusHorizontal = av1.y === av2.y;
+    // Highlight the source number(s) the pupil needs for the current sub-step:
+    // just the "whole" side while finding it, then both it and the notch
+    // "part" once they're subtracting to find the missing side.
+    highlightIdx = subStep === 'whole'
+      ? [wholeEdgeIndexFor(activeIdx)]
+      : [wholeEdgeIndexFor(activeIdx), partEdgeIndexFor(activeIdx)];
   }
 
   shape.edgeLengths.forEach((len, i) => {
@@ -2908,6 +2941,14 @@ function buildSVG(){
     } else {
       text = '?';
       fillColor = (i === activeIdx) ? 'var(--mark-deep)' : 'var(--ink-soft)';
+    }
+
+    if (highlightIdx.includes(i)){
+      const boxW = Math.max(30, String(text).length * 12 + 12);
+      let boxX = x;
+      if (anchor === 'middle') boxX = x - boxW / 2;
+      else if (anchor === 'end') boxX = x - boxW;
+      svg += `<rect x="${boxX.toFixed(1)}" y="${(y - 17).toFixed(1)}" width="${boxW}" height="23" rx="5" fill="var(--mark)"/>`;
     }
     svg += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}" fill="${fillColor}" class="shapeLabel">${text}</text>`;
   });
@@ -3043,14 +3084,14 @@ function render(){
     const bd = breakdownFor(missingQueue[missingStepIdx]);
 
     if (subStep === 'whole'){
-      stagePrompt.textContent = bd.horizontal ? 'How wide is the shape?' : 'How tall is the shape?';
+      stagePrompt.textContent = bd.horizontal ? 'How wide is the shape? Use the highlighted number.' : 'How tall is the shape? Use the highlighted number.';
       answerHost.innerHTML = `
         <div class="answerRow">
           <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="shapeInput" id="ls-answerInput">
         </div>
       `;
     } else {
-      stagePrompt.textContent = 'So how long is the missing side?';
+      stagePrompt.textContent = 'So how long is the missing side? Use the two highlighted numbers.';
       answerHost.innerHTML = `
         <div class="answerRow" style="align-items:center;">
           <input type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" class="shapeInput" id="ls-answerInput">
