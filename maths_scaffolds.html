@@ -693,6 +693,11 @@
       <h2>L-shape perimeter</h2>
       <p>Work out the two missing sides on an L-shaped diagram, then add all six sides together to find the perimeter.</p>
     </div>
+    <div class="scaffoldCard" onclick="showApp('tc-app')">
+      <span class="cardIcon">🕐</span>
+      <h2>Time conversion</h2>
+      <p>Convert between 12-hour and 24-hour time — decide whether the hour needs to change, then work out the new time.</p>
+    </div>
   </div>
 </div>
 
@@ -1005,6 +1010,52 @@
 </div>
 </div>
 
+<div class="appContainer" id="tc-app">
+  <div class="wrap">
+    <button class="backBtn" onclick="showHome()">&larr; Back to menu</button>
+  </div>
+<div class="wrap" style="margin-top:0">
+  <h1>Time conversion</h1>
+  <p class="sub">Generates a random time — decide whether the hour needs to change to convert it, then write the converted time.</p>
+
+  <div class="panel" id="tc-setup">
+    <div class="field">
+      <label>Which conversion?</label>
+      <div class="pills" id="tc-directionPills">
+        <button class="pill active" data-direction="12to24">12-hour &rarr; 24-hour</button>
+        <button class="pill" data-direction="24to12">24-hour &rarr; 12-hour</button>
+      </div>
+    </div>
+
+    <button class="btn" id="tc-startBtn">Start</button>
+  </div>
+
+  <div class="panel" id="tc-presentation">
+    <div class="topRow">
+      <div class="questionLabel" id="tc-questionLabel"></div>
+    </div>
+
+    <div class="sentenceBox" id="tc-timeDisplay"></div>
+
+    <p class="stagePrompt" id="tc-stagePrompt"></p>
+    <div id="tc-answerHost"></div>
+
+    <div class="checkRow" id="tc-checkRow" style="display:none">
+      <button class="btn" id="tc-checkBtn">Check</button>
+    </div>
+    <div class="checkFeedback" id="tc-checkFeedback"></div>
+
+    <div id="tc-finishHost"></div>
+
+    <div class="controls">
+      <button class="btn secondary" id="tc-resetBtn">New question</button>
+    </div>
+  </div>
+
+  <p class="foot">Work out whether the hour needs to change first, then write the time in its new form.</p>
+</div>
+</div>
+
 <script>
 function showApp(id){
   document.getElementById('home').style.display = 'none';
@@ -1013,6 +1064,7 @@ function showApp(id){
   document.getElementById('cs-app').style.display = 'none';
   document.getElementById('ca-app').style.display = 'none';
   document.getElementById('ls-app').style.display = 'none';
+  document.getElementById('tc-app').style.display = 'none';
   document.getElementById(id).style.display = 'block';
   window.scrollTo(0,0);
 }
@@ -3151,6 +3203,236 @@ function render(){
     checkRow.style.display = 'none';
     checkFeedback.textContent = '';
     finishHost.innerHTML = renderFinish();
+  }
+}
+})();
+</script>
+
+<script>
+(function(){
+let tcDirection = '12to24';
+let tcTime = null;       // raw generated time: { hour12, period, minute } or { hour24, minute }
+let tcComputed = null;   // derived target: { hour24, needsChange } or { hour12, period, needsChange }
+let stage = 'ask';       // 'ask' -> 'convert' -> 'finished'
+let hintShown = false;
+
+function randInt(min, max){ return min + Math.floor(Math.random() * (max - min + 1)); }
+function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+function fmt12(hour, minute, period){ return `${hour}:${pad2(minute)} ${period}`; }
+function fmt24(hour, minute){ return `${pad2(hour)}:${pad2(minute)}`; }
+
+/* Weighted so pupils see the 12/00 edge cases often enough to learn them,
+   not just the plain add-12/subtract-12 case. */
+function genTime(direction){
+  if (direction === '12to24'){
+    const hour12 = Math.random() < 0.25 ? 12 : randInt(1, 11);
+    const period = Math.random() < 0.5 ? 'am' : 'pm';
+    const minute = randInt(0, 59);
+    return { hour12, period, minute };
+  }
+  const r = Math.random();
+  const hour24 = r < 0.15 ? 0 : (r < 0.3 ? 12 : randInt(1, 23));
+  const minute = randInt(0, 59);
+  return { hour24, minute };
+}
+
+function computeTime(direction, t){
+  if (direction === '12to24'){
+    const { hour12, period } = t;
+    const hour24 = period === 'am' ? (hour12 === 12 ? 0 : hour12) : (hour12 === 12 ? 12 : hour12 + 12);
+    const needsChange = (period === 'pm' && hour12 !== 12) || (period === 'am' && hour12 === 12);
+    return { hour24, needsChange };
+  }
+  const { hour24 } = t;
+  let hour12 = hour24 % 12; if (hour12 === 0) hour12 = 12;
+  const period = hour24 < 12 ? 'am' : 'pm';
+  const needsChange = hour24 === 0 || hour24 >= 13;
+  return { hour12, period, needsChange };
+}
+
+function sourceStr(){
+  return tcDirection === '12to24' ? fmt12(tcTime.hour12, tcTime.minute, tcTime.period) : fmt24(tcTime.hour24, tcTime.minute);
+}
+function targetStr(){
+  return tcDirection === '12to24' ? fmt24(tcComputed.hour24, tcTime.minute) : fmt12(tcComputed.hour12, tcTime.minute, tcComputed.period);
+}
+
+function ruleHintText(){
+  return tcDirection === '12to24'
+    ? 'PM times need 12 adding to the hour — except 12 pm, which stays as 12. The other exception is 12 am, which becomes 00.'
+    : 'Hours 13–23 need 12 subtracting — except hour 12, which stays as 12 (noon). The other exception is hour 00, which becomes 12 (midnight).';
+}
+
+function stepHintText(){
+  if (tcDirection === '12to24'){
+    const { hour12, period } = tcTime;
+    if (period === 'pm' && hour12 !== 12) return `${hour12} + 12 = ${tcComputed.hour24}, so the hour becomes ${pad2(tcComputed.hour24)}.`;
+    if (period === 'am' && hour12 === 12) return `12 am is midnight, so the hour becomes 00.`;
+    return `The hour stays as ${hour12} — just write it with two digits and no am/pm.`;
+  }
+  const { hour24 } = tcTime;
+  if (hour24 >= 13) return `${hour24} − 12 = ${tcComputed.hour12}, so the hour becomes ${tcComputed.hour12}.`;
+  if (hour24 === 0) return `00 is midnight, so the hour becomes 12 am.`;
+  return `The hour stays as ${tcComputed.hour12} — just add am or pm.`;
+}
+
+let tcDirectionChoice = tcDirection;
+document.querySelectorAll('#tc-directionPills .pill').forEach(b => {
+  b.addEventListener('click', () => {
+    tcDirectionChoice = b.dataset.direction;
+    document.querySelectorAll('#tc-directionPills .pill').forEach(x => x.classList.toggle('active', x === b));
+  });
+});
+
+document.getElementById('tc-startBtn').addEventListener('click', () => {
+  tcDirection = tcDirectionChoice;
+  tcTime = genTime(tcDirection);
+  tcComputed = computeTime(tcDirection, tcTime);
+  stage = 'ask';
+  hintShown = false;
+  document.getElementById('tc-setup').style.display = 'none';
+  document.getElementById('tc-presentation').style.display = 'block';
+  render();
+});
+
+document.getElementById('tc-resetBtn').addEventListener('click', () => {
+  document.getElementById('tc-presentation').style.display = 'none';
+  document.getElementById('tc-setup').style.display = 'block';
+});
+
+document.getElementById('tc-checkBtn').addEventListener('click', () => {
+  if (stage === 'convert') doCheckConvert();
+});
+
+function doCheckAsk(userSaysChanges){
+  const checkFeedback = document.getElementById('tc-checkFeedback');
+  if (userSaysChanges === tcComputed.needsChange){
+    checkFeedback.textContent = 'Correct!';
+    checkFeedback.className = 'checkFeedback good';
+    stage = 'convert';
+    hintShown = false;
+    setTimeout(render, 350);
+  } else {
+    checkFeedback.textContent = 'Not quite — try again.';
+    checkFeedback.className = 'checkFeedback bad';
+  }
+}
+
+function doCheckConvert(){
+  const checkFeedback = document.getElementById('tc-checkFeedback');
+  const input = document.getElementById('tc-answerInput');
+  if (!input) return;
+  const raw = input.value.trim();
+  if (raw === ''){
+    checkFeedback.textContent = 'Type the new time first.';
+    checkFeedback.className = 'checkFeedback bad';
+    return;
+  }
+
+  let ok = false;
+  if (tcDirection === '12to24'){
+    const m = raw.match(/^(\d{1,2}):?(\d{2})$/);
+    if (m) ok = parseInt(m[1], 10) === tcComputed.hour24 && parseInt(m[2], 10) === tcTime.minute;
+  } else {
+    const m = raw.toLowerCase().replace(/\s+/g, ' ').match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
+    if (m) ok = parseInt(m[1], 10) === tcComputed.hour12 && parseInt(m[2], 10) === tcTime.minute && m[3] === tcComputed.period;
+  }
+
+  if (ok){
+    checkFeedback.textContent = 'Correct!';
+    checkFeedback.className = 'checkFeedback good';
+    input.className = 'blankInput correct';
+    input.disabled = true;
+    stage = 'finished';
+    setTimeout(render, 350);
+  } else {
+    checkFeedback.textContent = 'Not quite — try again.';
+    checkFeedback.className = 'checkFeedback bad';
+    input.className = 'blankInput wrong';
+    input.value = '';
+    input.focus();
+  }
+}
+
+/* Toggles the hint text in place, without rebuilding the answer input —
+   so a pupil's in-progress typing isn't lost when they check the hint. */
+function toggleHint(){
+  hintShown = !hintShown;
+  const hintBtn = document.getElementById('tc-hintBtn');
+  const hintText = document.getElementById('tc-hintText');
+  if (!hintBtn || !hintText) return;
+  hintBtn.textContent = hintShown ? 'Hide hint' : 'Show hint';
+  hintText.textContent = hintShown ? (stage === 'ask' ? ruleHintText() : stepHintText()) : '';
+}
+
+function render(){
+  const questionLabel = document.getElementById('tc-questionLabel');
+  const timeDisplay = document.getElementById('tc-timeDisplay');
+  const stagePrompt = document.getElementById('tc-stagePrompt');
+  const answerHost = document.getElementById('tc-answerHost');
+  const checkRow = document.getElementById('tc-checkRow');
+  const checkFeedback = document.getElementById('tc-checkFeedback');
+  const finishHost = document.getElementById('tc-finishHost');
+
+  timeDisplay.innerHTML = `<span class="num">${sourceStr()}</span>`;
+
+  if (stage === 'ask'){
+    questionLabel.textContent = tcDirection === '12to24' ? 'Convert to 24-hour time' : 'Convert to 12-hour time';
+    stagePrompt.textContent = 'Does the hour need to change to convert this time?';
+    answerHost.innerHTML = `
+      <div class="answerRow" style="flex-wrap:wrap;">
+        <button class="pill" id="tc-yesBtn">Yes, it changes</button>
+        <button class="pill" id="tc-noBtn">No, it stays the same</button>
+        <button class="btn secondary small" id="tc-hintBtn">${hintShown ? 'Hide hint' : 'Show hint'}</button>
+      </div>
+      <div class="quotHint" id="tc-hintText">${hintShown ? ruleHintText() : ''}</div>
+    `;
+    document.getElementById('tc-yesBtn').addEventListener('click', () => doCheckAsk(true));
+    document.getElementById('tc-noBtn').addEventListener('click', () => doCheckAsk(false));
+    document.getElementById('tc-hintBtn').addEventListener('click', toggleHint);
+
+    checkRow.style.display = 'none';
+    checkFeedback.textContent = '';
+    checkFeedback.className = 'checkFeedback';
+    finishHost.innerHTML = '';
+    return;
+  }
+
+  if (stage === 'convert'){
+    questionLabel.textContent = tcComputed.needsChange ? 'The hour changes' : 'The hour stays the same';
+    stagePrompt.textContent = tcDirection === '12to24'
+      ? 'Now write the time in 24-hour form (e.g. 09:05).'
+      : 'Now write the time in 12-hour form (e.g. 9:05 am).';
+    answerHost.innerHTML = `
+      <div class="answerRow">
+        <input type="text" autocomplete="off" class="blankInput" id="tc-answerInput" placeholder="${tcDirection === '12to24' ? 'HH:MM' : 'H:MM am/pm'}">
+        <button class="btn secondary small" id="tc-hintBtn">${hintShown ? 'Hide hint' : 'Show hint'}</button>
+      </div>
+      <div class="quotHint" id="tc-hintText">${hintShown ? stepHintText() : ''}</div>
+    `;
+    document.getElementById('tc-hintBtn').addEventListener('click', toggleHint);
+
+    const input = document.getElementById('tc-answerInput');
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheckConvert(); });
+    setTimeout(() => input.focus(), 30);
+
+    checkRow.style.display = 'flex';
+    checkFeedback.textContent = '';
+    checkFeedback.className = 'checkFeedback';
+    finishHost.innerHTML = '';
+    return;
+  }
+
+  if (stage === 'finished'){
+    questionLabel.textContent = '';
+    stagePrompt.textContent = '';
+    answerHost.innerHTML = '';
+    checkRow.style.display = 'none';
+    checkFeedback.textContent = '';
+    finishHost.innerHTML = `<div class="finishBox">
+      <div class="headline">Solved!</div>
+      <p>${sourceStr()} = <span class="ans">${targetStr()}</span></p>
+    </div>`;
   }
 }
 })();
