@@ -628,6 +628,38 @@
     .shapeLabel{ font-size:15px; }
   }
 
+  /* ---- HCF tool styles ---- */
+  #hcf-presentation{ display:none; }
+  .hcfRow{ display:flex; gap:24px; flex-wrap:wrap; margin:18px 0 8px; }
+  .hcfTable{ flex:1 1 150px; min-width:130px; }
+  .hcfTable .hcfHead{
+    font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:22px;
+    text-align:center; padding-bottom:8px; border-bottom:3px solid var(--ink); margin-bottom:6px;
+  }
+  .hcfTable.active .hcfHead{ color: var(--mark-deep); border-bottom-color: var(--mark-deep); }
+  .hcfPairRow{ display:flex; justify-content:center; border-bottom:1px solid var(--line); }
+  .hcfCell{ flex:1; text-align:center; font-family:'IBM Plex Mono', monospace; font-size:16.5px; font-weight:600; padding:6px 4px; border-right:1.5px solid var(--line); }
+  .hcfCell:last-child{ border-right:none; }
+  .hcfFactorList{ font-size:13px; color:var(--ink-soft); margin-top:10px; }
+  .hcfFactorList .tag{
+    display:inline-block; background:var(--good-tint); color:var(--good); border-radius:5px;
+    padding:2px 7px; margin:2px 3px 0 0; font-family:'IBM Plex Mono', monospace; font-weight:600; font-size:12.5px;
+  }
+  .hcfPairInput{
+    width:56px; font-family:'IBM Plex Mono', monospace; font-size:17px; font-weight:600;
+    text-align:center; border:none; border-bottom:2.5px solid var(--ink);
+    background:transparent; color:var(--ink); outline:none; padding:2px 0;
+  }
+  .hcfPairInput:focus{ border-bottom-color: var(--mark-deep); background:#fffaf0; }
+  .hcfPairInput::-webkit-outer-spin-button, .hcfPairInput::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .hcf-numInput{
+    width:90px; font-family:'IBM Plex Mono', monospace; font-size:18px; font-weight:600;
+    padding:8px 10px; border:1.5px solid var(--line); border-radius:7px;
+    background:#fff; color:var(--ink); outline:none;
+  }
+  .hcf-numInput:focus{ border-color: var(--mark-deep); }
+  .hcf-numInput::-webkit-outer-spin-button, .hcf-numInput::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+
   /* ---- hub / home screen ---- */
 
   #home{ max-width: 720px; margin: 0 auto; }
@@ -692,6 +724,11 @@
       <span class="cardIcon">📐</span>
       <h2>L-shape perimeter</h2>
       <p>Work out the two missing sides on an L-shaped diagram, then add all six sides together to find the perimeter.</p>
+    </div>
+    <div class="scaffoldCard" onclick="showApp('hcf-app')">
+      <span class="cardIcon">🔢</span>
+      <h2>Highest common factor</h2>
+      <p>Build a factor T-table for two or three numbers, then spot the biggest factor they share.</p>
     </div>
   </div>
 </div>
@@ -1002,6 +1039,65 @@
   </div>
 
   <p class="foot">Work out the two missing sides first and type them straight onto the diagram, then add all six sides together to find the perimeter.</p>
+</div>
+</div>
+
+<div class="appContainer" id="hcf-app">
+  <div class="wrap">
+    <button class="backBtn" onclick="showHome()">&larr; Back to menu</button>
+  </div>
+<div class="wrap" style="margin-top:0">
+  <h1>Highest common factor</h1>
+  <p class="sub">Build a factor T-table for each number — testing 1, 2, 3… in turn — then spot the biggest factor they all share.</p>
+
+  <div class="panel" id="hcf-setup">
+    <div class="field">
+      <label>How many numbers?</label>
+      <div class="pills" id="hcf-countPills">
+        <button class="pill active" data-count="2">Two numbers</button>
+        <button class="pill" data-count="3">Three numbers</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Question source</label>
+      <div class="pills" id="hcf-modePills">
+        <button class="pill active" data-mode="random">Random numbers</button>
+        <button class="pill" data-mode="custom">My own numbers</button>
+      </div>
+    </div>
+    <div class="field" id="hcf-customNums" style="display:none">
+      <label>Enter the numbers</label>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <input type="number" inputmode="numeric" id="hcf-num1" placeholder="e.g. 24" class="hcf-numInput">
+        <input type="number" inputmode="numeric" id="hcf-num2" placeholder="e.g. 36" class="hcf-numInput">
+        <span id="hcf-thirdField" style="display:none">
+          <input type="number" inputmode="numeric" id="hcf-num3" placeholder="e.g. 60" class="hcf-numInput">
+        </span>
+      </div>
+    </div>
+    <div class="startRow">
+      <button class="btn" id="hcf-startBtn">Start</button>
+    </div>
+  </div>
+
+  <div class="panel" id="hcf-presentation">
+    <div class="stageLabel" id="hcf-stageLabel"></div>
+    <p class="prompt" id="hcf-promptText"></p>
+
+    <div class="hcfRow" id="hcf-tablesHost"></div>
+
+    <div class="choiceRow" id="hcf-choiceRow" style="display:none"></div>
+    <div class="feedback" id="hcf-feedbackText"></div>
+
+    <div id="hcf-pairHost"></div>
+    <div id="hcf-finalHost"></div>
+
+    <div class="controls">
+      <button class="btn secondary" id="hcf-resetBtn">New numbers</button>
+    </div>
+  </div>
+
+  <p class="foot">Test each number in turn: is it a factor? If yes, find its pair. Keep going until the table meets itself in the middle, then compare the lists.</p>
 </div>
 </div>
 
@@ -3151,6 +3247,268 @@ function render(){
     checkRow.style.display = 'none';
     checkFeedback.textContent = '';
     finishHost.innerHTML = renderFinish();
+  }
+}
+})();
+</script>
+
+<script>
+(function(){
+/* ---------- helpers ---------- */
+function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function gcd(a,b){ return b===0 ? a : gcd(b, a % b); }
+
+/* ---------- setup UI ---------- */
+let count = 2;
+let customMode = false;
+
+document.querySelectorAll('#hcf-countPills .pill').forEach(b => {
+  b.addEventListener('click', () => {
+    count = Number(b.dataset.count);
+    document.querySelectorAll('#hcf-countPills .pill').forEach(x => x.classList.toggle('active', x === b));
+    document.getElementById('hcf-thirdField').style.display = count === 3 ? 'inline-block' : 'none';
+  });
+});
+document.querySelectorAll('#hcf-modePills .pill').forEach(b => {
+  b.addEventListener('click', () => {
+    customMode = b.dataset.mode === 'custom';
+    document.querySelectorAll('#hcf-modePills .pill').forEach(x => x.classList.toggle('active', x === b));
+    document.getElementById('hcf-customNums').style.display = customMode ? 'block' : 'none';
+  });
+});
+
+function generateRandomNumbers(cnt){
+  for (let attempt=0; attempt<500; attempt++){
+    const hcf = randInt(2,9);
+    const mults = new Set();
+    while (mults.size < cnt) mults.add(randInt(2,9));
+    const arr = [...mults];
+    const nums = arr.map(m => hcf*m);
+    if (nums.every(n => n<=120) && new Set(nums).size===cnt) return nums;
+  }
+  return cnt===3 ? [24,36,60] : [24,36];
+}
+
+/* ---------- state ---------- */
+let tables = [];            // { n, maxD, d, rows:[[a,b], ...] }
+let activeIdx = 0;
+let substage = 'ask';       // 'ask' | 'pair'
+let chosenYesNo = null;
+let checkedPair = false;
+let isCorrectPair = false;
+let stage = 'building';     // 'building' | 'final'
+let finalChecked = false;
+let finalCorrect = false;
+
+document.getElementById('hcf-startBtn').addEventListener('click', () => {
+  let numbers;
+  if (customMode){
+    const ids = ['hcf-num1','hcf-num2','hcf-num3'].slice(0, count);
+    const vals = ids.map(id => parseInt(document.getElementById(id).value, 10));
+    if (vals.some(v => isNaN(v) || v < 2 || v > 300)){
+      alert('Enter whole numbers of 2 or more (up to 300) for each.');
+      return;
+    }
+    numbers = vals;
+  } else {
+    numbers = generateRandomNumbers(count);
+  }
+
+  tables = numbers.map(n => ({ n, maxD: Math.floor(Math.sqrt(n)), d: 1, rows: [] }));
+  activeIdx = 0;
+  substage = 'ask';
+  chosenYesNo = null;
+  checkedPair = false;
+  isCorrectPair = false;
+  stage = 'building';
+  finalChecked = false;
+  finalCorrect = false;
+
+  document.getElementById('hcf-setup').style.display = 'none';
+  document.getElementById('hcf-presentation').style.display = 'block';
+  render();
+});
+
+document.getElementById('hcf-resetBtn').addEventListener('click', () => {
+  document.getElementById('hcf-presentation').style.display = 'none';
+  document.getElementById('hcf-setup').style.display = 'block';
+});
+
+function currentTable(){ return tables[activeIdx]; }
+
+function factorsOf(t){
+  const set = new Set();
+  t.rows.forEach(r => { set.add(r[0]); set.add(r[1]); });
+  return [...set].sort((a,b) => a-b);
+}
+
+/* ---------- interaction ---------- */
+function selectYesNo(opt, correctOpt){
+  chosenYesNo = opt;
+  render();
+  if (opt === correctOpt){
+    if (opt === 'Yes'){
+      setTimeout(() => { substage = 'pair'; chosenYesNo = null; render(); }, 500);
+    } else {
+      setTimeout(() => { advanceD(); }, 500);
+    }
+  } else {
+    setTimeout(() => { chosenYesNo = null; render(); }, 900);
+  }
+}
+
+function checkPair(){
+  const t = currentTable();
+  const partner = t.n / t.d;
+  const input = document.getElementById('hcf-pairInput');
+  if (!input) return;
+  const v = parseInt(input.value, 10);
+  checkedPair = true;
+  isCorrectPair = (v === partner);
+  if (isCorrectPair){
+    t.rows.push([t.d, partner]);
+    render();
+    setTimeout(() => { advanceD(); }, 500);
+  } else {
+    render();
+    setTimeout(() => { const el = document.getElementById('hcf-pairInput'); if (el) el.focus(); }, 30);
+  }
+}
+
+function advanceD(){
+  const t = currentTable();
+  t.d += 1;
+  chosenYesNo = null;
+  checkedPair = false;
+  isCorrectPair = false;
+  substage = 'ask';
+  if (t.d > t.maxD){
+    if (activeIdx < tables.length - 1){
+      activeIdx += 1;
+    } else {
+      stage = 'final';
+    }
+  }
+  render();
+}
+
+function checkFinal(actualHCF){
+  const input = document.getElementById('hcf-finalInput');
+  if (!input) return;
+  const v = parseInt(input.value, 10);
+  finalChecked = true;
+  finalCorrect = (v === actualHCF);
+  render();
+  if (!finalCorrect){
+    setTimeout(() => { const el = document.getElementById('hcf-finalInput'); if (el) el.focus(); }, 30);
+  }
+}
+
+/* ---------- render ---------- */
+function render(){
+  const stageLabel = document.getElementById('hcf-stageLabel');
+  const promptText = document.getElementById('hcf-promptText');
+  const tablesHost = document.getElementById('hcf-tablesHost');
+  const choiceRow = document.getElementById('hcf-choiceRow');
+  const feedbackText = document.getElementById('hcf-feedbackText');
+  const pairHost = document.getElementById('hcf-pairHost');
+  const finalHost = document.getElementById('hcf-finalHost');
+
+  tablesHost.innerHTML = '';
+  tables.forEach((t, idx) => {
+    const block = document.createElement('div');
+    const isActive = stage === 'building' && idx === activeIdx;
+    block.className = 'hcfTable' + (isActive ? ' active' : '');
+    const rowsHtml = t.rows.map(r => `<div class="hcfPairRow"><div class="hcfCell">${r[0]}</div><div class="hcfCell">${r[1]}</div></div>`).join('');
+    let doneHtml = '';
+    if (t.d > t.maxD){
+      doneHtml = `<div class="hcfFactorList">Factors: ${factorsOf(t).map(f => `<span class="tag">${f}</span>`).join('')}</div>`;
+    }
+    block.innerHTML = `<div class="hcfHead">${t.n}</div>${rowsHtml}${doneHtml}`;
+    tablesHost.appendChild(block);
+  });
+
+  if (stage === 'building'){
+    const t = currentTable();
+    stageLabel.textContent = `Finding factors of ${t.n}` + (tables.length > 1 ? ` — number ${activeIdx+1} of ${tables.length}` : '');
+    pairHost.innerHTML = '';
+    finalHost.innerHTML = '';
+
+    if (substage === 'ask'){
+      const isFactor = t.n % t.d === 0;
+      const correctOpt = isFactor ? 'Yes' : 'No';
+      promptText.textContent = `Is ${t.d} a factor of ${t.n}?`;
+      choiceRow.style.display = 'flex';
+      choiceRow.innerHTML = '';
+      ['Yes','No'].forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'choiceBtn';
+        btn.textContent = opt;
+        btn.disabled = chosenYesNo !== null;
+        if (chosenYesNo !== null){
+          if (opt === correctOpt) btn.classList.add('correct');
+          if (opt === chosenYesNo && opt !== correctOpt) btn.classList.add('wrong');
+        }
+        btn.addEventListener('click', () => selectYesNo(opt, correctOpt));
+        choiceRow.appendChild(btn);
+      });
+      if (chosenYesNo === null){
+        feedbackText.textContent = '';
+      } else if (chosenYesNo === correctOpt){
+        feedbackText.className = 'feedback good';
+        feedbackText.textContent = 'Correct!';
+      } else {
+        feedbackText.className = 'feedback bad';
+        feedbackText.textContent = 'Not quite — try again.';
+      }
+    } else {
+      choiceRow.style.display = 'none';
+      feedbackText.textContent = '';
+      const partner = t.n / t.d;
+      promptText.textContent = `${t.d} is a factor. What's its pair?`;
+      pairHost.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;margin:6px 0 14px;flex-wrap:wrap;">
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:17px;">${t.d} ×</span>
+          <input type="number" inputmode="numeric" class="hcfPairInput" id="hcf-pairInput" value="${checkedPair && isCorrectPair ? partner : ''}" ${checkedPair && isCorrectPair ? 'disabled' : ''}>
+          <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:17px;">= ${t.n}</span>
+          <button class="btn" id="hcf-pairCheckBtn">Check</button>
+        </div>
+        <div class="checkFeedback ${checkedPair ? (isCorrectPair ? 'good' : 'bad') : ''}">${checkedPair ? (isCorrectPair ? 'Correct!' : 'Not quite — try again.') : ''}</div>
+      `;
+      const pairInput = document.getElementById('hcf-pairInput');
+      const pairCheckBtn = document.getElementById('hcf-pairCheckBtn');
+      pairCheckBtn.addEventListener('click', checkPair);
+      pairInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkPair(); });
+      if (!(checkedPair && isCorrectPair)) setTimeout(() => pairInput.focus(), 30);
+    }
+  } else {
+    // final stage — spot the highest common factor
+    choiceRow.style.display = 'none';
+    feedbackText.textContent = '';
+    pairHost.innerHTML = '';
+    stageLabel.textContent = 'Highest common factor';
+    const isBoth = tables.length === 2;
+    promptText.textContent = `What's the highest number that appears in ${isBoth ? 'both' : 'all'} lists?`;
+
+    const actualHCF = tables.reduce((g, t) => gcd(g, t.n), tables[0].n);
+    const listStr = tables.length === 2
+      ? `${tables[0].n} and ${tables[1].n}`
+      : `${tables[0].n}, ${tables[1].n} and ${tables[2].n}`;
+
+    finalHost.innerHTML = `
+      <div class="sentenceBox">So the highest common factor of <span class="num">${listStr}</span> is
+        <input id="hcf-finalInput" class="blankInput ${finalChecked ? (finalCorrect ? 'correct' : 'wrong') : ''}" type="number" inputmode="numeric" placeholder="?" value="${finalChecked && finalCorrect ? actualHCF : ''}" ${finalChecked && finalCorrect ? 'disabled' : ''}>
+      </div>
+      <div class="checkRow">
+        <button class="btn" id="hcf-finalCheckBtn">Check answer</button>
+      </div>
+      <div class="checkFeedback ${finalChecked ? (finalCorrect ? 'good' : 'bad') : ''}">${finalChecked ? (finalCorrect ? 'Correct — well done!' : 'Not quite — compare the lists again.') : ''}</div>
+    `;
+    const finalInput = document.getElementById('hcf-finalInput');
+    const finalCheckBtn = document.getElementById('hcf-finalCheckBtn');
+    finalCheckBtn.addEventListener('click', () => checkFinal(actualHCF));
+    finalInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkFinal(actualHCF); });
+    if (!(finalChecked && finalCorrect)) setTimeout(() => finalInput.focus(), 30);
   }
 }
 })();
