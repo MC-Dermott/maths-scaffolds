@@ -692,6 +692,66 @@
   }
   .backBtn:hover{ color: var(--mark-deep); }
 
+  /* ---- lattice multiplication ---- */
+  .latticeGrid{ display:inline-grid; margin: 18px 0; }
+  .latticeCornerCell{ width:54px; height:54px; }
+  .latticeHeaderCell{
+    width:54px; height:54px; display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:22px;
+    border:2px solid var(--ink); background:#fff;
+  }
+  .latticeHeaderCell.solved{ background:#fdf6e3; color: var(--mark-deep); }
+  .latticeHeaderCell input{
+    width:32px; text-align:center; font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:20px;
+    border:1.5px solid var(--line); border-radius:6px; padding:4px 2px; outline:none; background:#fff; color:var(--ink);
+  }
+  .latticeHeaderCell input:focus{ border-color: var(--mark-deep); }
+  .latticeHeaderCell input.correct{ border-color: var(--good); color: var(--good); }
+  .latticeHeaderCell input.wrong{ border-color: var(--bad); color: var(--bad); }
+  .latticeCell{
+    position:relative; width:54px; height:54px; border:1px solid var(--ink); background:#fff;
+    background-image: linear-gradient(135deg, transparent calc(50% - 1px), var(--line) calc(50% - 1px), var(--line) calc(50% + 1px), transparent calc(50% + 1px));
+  }
+  .latticeCell.active{ background-color:#fdf6e3; }
+  .latticeTens, .latticeUnits{
+    position:absolute; font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:15px; color: var(--good);
+  }
+  .latticeTens{ top:3px; left:5px; }
+  .latticeUnits{ bottom:3px; right:5px; }
+  .latticeTensInput, .latticeUnitsInput{
+    position:absolute; width:20px; height:18px; text-align:center; font-family:'IBM Plex Mono', monospace;
+    font-weight:700; font-size:13px; border:1px solid var(--line); border-radius:4px; padding:0; outline:none; background:#fff; color:var(--ink);
+  }
+  .latticeTensInput{ top:2px; left:3px; }
+  .latticeUnitsInput{ bottom:2px; right:3px; }
+  .latticeTensInput:focus, .latticeUnitsInput:focus{ border-color: var(--mark-deep); }
+  .latticeBandHost{ margin: 10px 0 16px; }
+  .latticeDccRow{ display:flex; align-items:flex-end; gap:2px; }
+  .latticeCarryCell{
+    width:38px; flex:0 0 38px; font-family:'IBM Plex Mono', monospace;
+    font-size:16px; font-weight:700; text-align:center; height:22px; line-height:22px;
+    color: var(--exchange);
+  }
+  .latticeCarryInput{
+    width:24px; font-family:'IBM Plex Mono', monospace; font-size:14px; font-weight:700;
+    text-align:center; padding:1px 0; border:1.5px solid var(--line); border-radius:5px;
+    background:#fff; color: var(--ink); outline:none;
+  }
+  .latticeCarryInput:focus{ border-color: var(--mark-deep); }
+  .latticeAnswerCell{
+    width:38px; flex:0 0 38px; font-family:'IBM Plex Mono', monospace;
+    font-size:26px; font-weight:700; text-align:center; height:32px; line-height:32px;
+    color: var(--good);
+  }
+  .latticeAnswerCell.placeholder{ color: transparent; border-bottom: 3px dashed var(--line); }
+  .latticeAnswerCell.active{ background:#fdf6e3; border-radius:6px; color: var(--ink); border-bottom: 3px solid var(--mark-deep); }
+
+  @media (max-width:480px){
+    .latticeCornerCell, .latticeHeaderCell, .latticeCell{ width:42px; height:42px; }
+    .latticeHeaderCell{ font-size:18px; }
+    .latticeHeaderCell input{ width:26px; font-size:16px; }
+  }
+
 </style>
 </head>
 <body>
@@ -734,6 +794,11 @@
       <span class="cardIcon">🔢</span>
       <h2>Highest common factor</h2>
       <p>Build a factor T-table for two or three numbers, then spot the biggest factor they share.</p>
+    </div>
+    <div class="scaffoldCard" onclick="showApp('lat-app')">
+      <span class="cardIcon">✖️</span>
+      <h2>Lattice multiplication</h2>
+      <p>Fill in the grid's outside digits, multiply cell by cell, then add along the diagonals — carrying into the next one whenever you need to.</p>
     </div>
   </div>
 </div>
@@ -1152,6 +1217,66 @@
 </div>
 </div>
 
+<div class="appContainer" id="lat-app">
+  <div class="wrap">
+    <button class="backBtn" onclick="showHome()">&larr; Back to menu</button>
+  </div>
+<div class="wrap" style="margin-top:0">
+  <h1>Lattice multiplication</h1>
+  <p class="sub">Fill in the digits around the grid, multiply cell by cell, then add along the diagonals — carrying into the next one whenever you need to.</p>
+
+  <div class="panel" id="lat-setup">
+    <div class="field">
+      <label>Question source</label>
+      <div class="pills" id="lat-modePills">
+        <button class="pill active" data-mode="random">Random question</button>
+        <button class="pill" data-mode="custom">My own numbers</button>
+      </div>
+    </div>
+    <div id="lat-customOptions" style="display:none">
+      <div class="field" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
+        <div>
+          <label for="lat-aInput">First number</label>
+          <input id="lat-aInput" type="text" inputmode="numeric" value="236" class="shapeInput" style="width:120px;">
+        </div>
+        <div>
+          <label for="lat-bInput">Second number</label>
+          <input id="lat-bInput" type="text" inputmode="numeric" value="47" class="shapeInput" style="width:120px;">
+        </div>
+      </div>
+    </div>
+    <div class="field" id="lat-digitFields">
+      <label>Number of digits (random question)</label>
+      <div style="display:flex; gap:20px; flex-wrap:wrap;">
+        <div>
+          <label style="font-weight:400; font-size:12px;">First number</label>
+          <div class="pills" id="lat-aDigitsPills">
+            <button class="pill" data-digits="2">2-digit</button>
+            <button class="pill active" data-digits="3">3-digit</button>
+          </div>
+        </div>
+        <div>
+          <label style="font-weight:400; font-size:12px;">Second number</label>
+          <div class="pills" id="lat-bDigitsPills">
+            <button class="pill active" data-digits="2">2-digit</button>
+            <button class="pill" data-digits="3">3-digit</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="startRow"><button class="btn" id="lat-startBtn">Start</button></div>
+  </div>
+
+  <div class="panel" id="lat-presentation" style="display:none">
+    <div class="stageLabel" id="lat-stageLabel"></div>
+    <p class="prompt" id="lat-promptText"></p>
+    <div id="lat-mainHost"></div>
+    <div class="controls"><button class="btn secondary" id="lat-resetBtn">New question</button></div>
+  </div>
+  <p class="foot">Multiply along each row and column, splitting the answer across the diagonal — tens above the line, units below — then add down each diagonal strip.</p>
+</div>
+</div>
+
 <script>
 function showApp(id){
   document.getElementById('home').style.display = 'none';
@@ -1162,6 +1287,7 @@ function showApp(id){
   document.getElementById('ls-app').style.display = 'none';
   document.getElementById('tc-app').style.display = 'none';
   document.getElementById('hcf-app').style.display = 'none';
+  document.getElementById('lat-app').style.display = 'none';
   document.getElementById(id).style.display = 'block';
   window.scrollTo(0,0);
 }
@@ -1614,6 +1740,28 @@ document.getElementById('bs-tableToggleBtn').addEventListener('click', () => {
   document.getElementById('bs-tableToggleBtn').textContent =
     t.classList.contains('show') ? 'Hide table' : `Show ×${divisor} table`;
 });
+
+/* Jumps straight into a division of the given whole-number dividend/divisor —
+   used when this tool is embedded to mirror another question's own numbers
+   (see N3apps's core/ui/scaffold_widgets.py render_bus_stop_division_scaffold). */
+window.bsStart = function(params){
+  dividend = params.dividend; divisor = params.divisor;
+  result = computeSteps(dividend, divisor, params.maxDecimals || 10);
+  columns = result.wholeDigits.map(d => ({ type:'digit', digit:String(d), quotient:null, exchange:null, revealed:true }));
+  composeMode = false;
+  divisorRevealed = true;
+  stepIndex = 0; substage = 'quotient'; finished = false; pendingNextColIdx = null;
+
+  document.querySelectorAll('#bs-modePills .pill').forEach(b => b.classList.toggle('active', b.dataset.mode === 'custom'));
+  document.getElementById('bs-setup').style.display = 'none';
+  document.getElementById('bs-presentation').style.display = 'block';
+  document.getElementById('bs-questionLabel').textContent = `${dividend} ÷ ${divisor}`;
+  document.getElementById('bs-tableToggleBtn').style.display = 'inline-block';
+  buildTimesTable();
+  document.getElementById('bs-timesTable').classList.remove('show');
+  document.getElementById('bs-tableToggleBtn').textContent = `Show ×${divisor} table`;
+  render();
+};
 
 function buildTimesTable(){
   const t = document.getElementById('bs-timesTable');
@@ -3794,6 +3942,425 @@ function render(){
     if (!(finalChecked && finalCorrect)) setTimeout(() => finalInput.focus(), 30);
   }
 }
+})();
+</script>
+
+<script>
+/* ---------- lattice multiplication engine ---------- */
+(function(){
+  function el(tag, cls, text){
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function randInt(min, max){ return min + Math.floor(Math.random() * (max - min + 1)); }
+  function wirePills(row, dataAttr, onSelect){
+    if (!row) return;
+    const pills = row.querySelectorAll('.pill');
+    pills.forEach(b => {
+      b.addEventListener('click', () => {
+        pills.forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+        if (onSelect) onSelect(b.dataset[dataAttr]);
+      });
+    });
+  }
+  function activePill(row, dataAttr){
+    if (!row) return null;
+    const b = row.querySelector('.pill.active');
+    return b ? b.dataset[dataAttr] : null;
+  }
+
+  let A_DIGITS = [], B_DIGITS = [], nA = 0, nB = 0;
+  let cells = [];
+  let cellOrder = [], cellPos = 0;
+  let bands = [], bandPos = 0;
+  let stage = 'headers'; // 'headers' -> 'cells' -> 'diagonals' -> 'finished'
+
+  const modePills = document.getElementById('lat-modePills');
+  wirePills(modePills, 'mode', (mode) => {
+    document.getElementById('lat-customOptions').style.display = mode === 'custom' ? 'block' : 'none';
+    document.getElementById('lat-digitFields').style.display = mode === 'random' ? 'block' : 'none';
+  });
+  wirePills(document.getElementById('lat-aDigitsPills'), 'digits');
+  wirePills(document.getElementById('lat-bDigitsPills'), 'digits');
+
+  function randomDigits(n){
+    let s = String(randInt(1, 9));
+    for (let i = 1; i < n; i++) s += String(randInt(0, 9));
+    return s;
+  }
+
+  function prepareGrid(aStr, bStr){
+    A_DIGITS = aStr.split('').map(Number);
+    B_DIGITS = bStr.split('').map(Number);
+    nA = A_DIGITS.length; nB = B_DIGITS.length;
+    cells = [];
+    for (let r = 0; r < nB; r++){
+      const row = [];
+      for (let c = 0; c < nA; c++){
+        const product = A_DIGITS[c] * B_DIGITS[r];
+        row.push({ top: A_DIGITS[c], side: B_DIGITS[r], product, tens: Math.floor(product / 10), units: product % 10, solved: false });
+      }
+      cells.push(row);
+    }
+    cellOrder = [];
+    for (let r2 = 0; r2 < nB; r2++) for (let c2 = 0; c2 < nA; c2++) cellOrder.push([r2, c2]);
+    cellPos = 0;
+    stage = 'headers';
+  }
+
+  function prepareBands(){
+    const maxBand = (nA - 1) + (nB - 1) + 1;
+    const raw = [];
+    for (let b = 0; b <= maxBand; b++) raw.push([]);
+    for (let r = 0; r < nB; r++){
+      for (let c = 0; c < nA; c++){
+        const cell = cells[r][c];
+        const unitsBand = (nB - 1 - r) + (nA - 1 - c);
+        raw[unitsBand].push(cell.units);
+        raw[unitsBand + 1].push(cell.tens);
+      }
+    }
+    bands = raw.map((contributors, idx) => ({ index: idx, contributors, carryIn: 0, sum: 0, digit: 0, carryOut: 0 }));
+    let carry = 0;
+    bands.forEach(band => {
+      band.carryIn = carry;
+      band.sum = band.contributors.reduce((s, v) => s + v, 0) + carry;
+      band.digit = band.sum % 10;
+      band.carryOut = Math.floor(band.sum / 10);
+      carry = band.carryOut;
+    });
+    if (carry > 0){
+      bands.push({ index: bands.length, contributors: [], carryIn: carry, sum: carry, digit: carry % 10, carryOut: Math.floor(carry / 10) });
+    }
+    bandPos = 0;
+  }
+
+  function finalAnswerStr(){
+    return bands.slice().reverse().map(b => b.digit).join('').replace(/^0+(?=\d)/, '');
+  }
+
+  function buildGrid(opts){
+    opts = opts || {};
+    const grid = el('div', 'latticeGrid');
+    grid.style.gridTemplateColumns = `repeat(${nA + 1}, 54px)`;
+    grid.style.gridTemplateRows = `repeat(${nB + 1}, 54px)`;
+    grid.appendChild(el('div', 'latticeCornerCell'));
+
+    for (let c = 0; c < nA; c++){
+      if (opts.headerInputs){
+        const hc = el('div', 'latticeHeaderCell');
+        const hi = document.createElement('input');
+        hi.type = 'text'; hi.inputMode = 'numeric'; hi.maxLength = 1; hi.autocomplete = 'off';
+        hi.id = 'lat-headA' + c;
+        hc.appendChild(hi);
+        grid.appendChild(hc);
+      } else {
+        grid.appendChild(el('div', 'latticeHeaderCell solved', String(A_DIGITS[c])));
+      }
+    }
+
+    for (let r = 0; r < nB; r++){
+      if (opts.headerInputs){
+        const hc2 = el('div', 'latticeHeaderCell');
+        const hi2 = document.createElement('input');
+        hi2.type = 'text'; hi2.inputMode = 'numeric'; hi2.maxLength = 1; hi2.autocomplete = 'off';
+        hi2.id = 'lat-headB' + r;
+        hc2.appendChild(hi2);
+        grid.appendChild(hc2);
+      } else {
+        grid.appendChild(el('div', 'latticeHeaderCell solved', String(B_DIGITS[r])));
+      }
+      for (let c2 = 0; c2 < nA; c2++){
+        const cellData = cells[r][c2];
+        const isActive = opts.activeRC && opts.activeRC[0] === r && opts.activeRC[1] === c2;
+        const cellDiv = el('div', 'latticeCell' + (isActive ? ' active' : ''));
+        if (opts.headerInputs){
+          // blank placeholder — nothing filled in yet at this stage
+        } else if (cellData.solved){
+          cellDiv.appendChild(el('div', 'latticeTens', String(cellData.tens)));
+          cellDiv.appendChild(el('div', 'latticeUnits', String(cellData.units)));
+        } else if (isActive){
+          const tensInp = document.createElement('input');
+          tensInp.type = 'text'; tensInp.inputMode = 'numeric'; tensInp.maxLength = 1; tensInp.autocomplete = 'off';
+          tensInp.className = 'latticeTensInput'; tensInp.id = 'lat-tensInput';
+          const unitsInp = document.createElement('input');
+          unitsInp.type = 'text'; unitsInp.inputMode = 'numeric'; unitsInp.maxLength = 1; unitsInp.autocomplete = 'off';
+          unitsInp.className = 'latticeUnitsInput'; unitsInp.id = 'lat-unitsInput';
+          cellDiv.appendChild(tensInp); cellDiv.appendChild(unitsInp);
+        }
+        grid.appendChild(cellDiv);
+      }
+    }
+    return grid;
+  }
+
+  function render(){
+    const host = document.getElementById('lat-mainHost');
+    const stageLbl = document.getElementById('lat-stageLabel');
+    const promptEl = document.getElementById('lat-promptText');
+    stageLbl.textContent =
+      stage === 'headers' ? 'Step 1 of 3: fill in the grid' :
+      stage === 'cells' ? 'Step 2 of 3: multiply cell by cell' :
+      stage === 'diagonals' ? 'Step 3 of 3: add along the diagonals' : 'Finished';
+    promptEl.textContent = '';
+    host.innerHTML = '';
+    if (stage === 'headers') renderHeaders(host);
+    else if (stage === 'cells') renderCells(host);
+    else if (stage === 'diagonals') renderDiagonals(host);
+    else renderFinished(host);
+  }
+
+  function renderHeaders(host){
+    host.appendChild(el('p', 'prompt',
+      `Type each digit of ${A_DIGITS.join('')} along the top, and each digit of ${B_DIGITS.join('')} down the side.`));
+    host.appendChild(buildGrid({ headerInputs: true }));
+
+    const checkRow = el('div', 'checkRow');
+    const checkBtn = el('button', 'btn', 'Check numbers');
+    checkRow.appendChild(checkBtn);
+    host.appendChild(checkRow);
+    const fb = el('div', 'checkFeedback');
+    host.appendChild(fb);
+
+    checkBtn.onclick = () => {
+      let ok = true;
+      for (let c = 0; c < nA; c++){
+        const inp = document.getElementById('lat-headA' + c);
+        if (parseInt(inp.value, 10) === A_DIGITS[c]){ inp.classList.remove('wrong'); inp.classList.add('correct'); inp.disabled = true; }
+        else { inp.classList.add('wrong'); ok = false; }
+      }
+      for (let r = 0; r < nB; r++){
+        const inp2 = document.getElementById('lat-headB' + r);
+        if (parseInt(inp2.value, 10) === B_DIGITS[r]){ inp2.classList.remove('wrong'); inp2.classList.add('correct'); inp2.disabled = true; }
+        else { inp2.classList.add('wrong'); ok = false; }
+      }
+      if (ok){
+        fb.textContent = '✓ Correct! Now multiply cell by cell.'; fb.className = 'checkFeedback good';
+        checkBtn.disabled = true;
+        setTimeout(() => { stage = 'cells'; render(); }, 500);
+      } else {
+        fb.textContent = '✗ Check the highlighted boxes and try again.'; fb.className = 'checkFeedback bad';
+      }
+    };
+  }
+
+  function renderCells(host){
+    const act = cellPos < cellOrder.length ? cellOrder[cellPos] : null;
+    if (!act){
+      host.appendChild(el('p', 'prompt', 'Every cell is filled in.'));
+      setTimeout(() => { stage = 'diagonals'; prepareBands(); render(); }, 600);
+      return;
+    }
+    const [r, c] = act;
+    const cellData = cells[r][c];
+    host.appendChild(el('p', 'prompt',
+      `Multiply the top digit by the side digit: ${cellData.top} × ${cellData.side}. Write the tens digit above the line, the units digit below.`));
+    host.appendChild(buildGrid({ activeRC: act }));
+
+    const hintRow = el('div', 'answerRow');
+    const hintBtn = el('button', 'btn secondary small', `Show ×${cellData.side} table`);
+    hintRow.appendChild(hintBtn);
+    host.appendChild(hintRow);
+    const hintHost = el('div', 'timesTable');
+    host.appendChild(hintHost);
+    hintBtn.onclick = () => {
+      if (!hintHost.classList.contains('show')){
+        let lines = `<div class="ttHead">×${cellData.side} table</div>`;
+        for (let i = 1; i <= 12; i++) lines += `${i} × ${cellData.side} = ${i * cellData.side}<br>`;
+        hintHost.innerHTML = lines;
+        hintHost.classList.add('show');
+        hintBtn.textContent = 'Hide table';
+      } else {
+        hintHost.classList.remove('show');
+        hintBtn.textContent = `Show ×${cellData.side} table`;
+      }
+    };
+
+    const checkRow = el('div', 'checkRow');
+    const tensLabel = el('span', null, 'Tens:');
+    const tensAns = document.createElement('input');
+    tensAns.type = 'text'; tensAns.inputMode = 'numeric'; tensAns.maxLength = 1; tensAns.className = 'blankInput'; tensAns.id = 'lat-tensAnswer'; tensAns.style.width = '44px';
+    const unitsLabel = el('span', null, 'Units:');
+    const unitsAns = document.createElement('input');
+    unitsAns.type = 'text'; unitsAns.inputMode = 'numeric'; unitsAns.maxLength = 1; unitsAns.className = 'blankInput'; unitsAns.id = 'lat-unitsAnswer'; unitsAns.style.width = '44px';
+    const checkBtn = el('button', 'btn', 'Check');
+    checkRow.appendChild(tensLabel); checkRow.appendChild(tensAns);
+    checkRow.appendChild(unitsLabel); checkRow.appendChild(unitsAns);
+    checkRow.appendChild(checkBtn);
+    host.appendChild(checkRow);
+    const fb = el('div', 'checkFeedback');
+    host.appendChild(fb);
+
+    function doCheck(){
+      const tv = tensAns.value.trim() === '' ? 0 : parseInt(tensAns.value, 10);
+      const uv = parseInt(unitsAns.value, 10);
+      if (isNaN(uv)){ fb.textContent = 'Type at least the units digit.'; fb.className = 'checkFeedback bad'; return; }
+      if (tv === cellData.tens && uv === cellData.units){
+        fb.textContent = '✓ Correct!'; fb.className = 'checkFeedback good';
+        cellData.solved = true;
+        cellPos++;
+        tensAns.disabled = true; unitsAns.disabled = true; checkBtn.disabled = true;
+        setTimeout(render, 350);
+      } else {
+        fb.textContent = `✗ Not quite — check ${cellData.top} × ${cellData.side} and try again.`; fb.className = 'checkFeedback bad';
+        tensAns.value = ''; unitsAns.value = ''; unitsAns.focus();
+      }
+    }
+    checkBtn.onclick = doCheck;
+    unitsAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    tensAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    setTimeout(() => unitsAns.focus(), 30);
+  }
+
+  function renderDiagonals(host){
+    host.appendChild(el('p', 'prompt', 'Every cell is multiplied out. Now add down each diagonal strip, starting from the right.'));
+    host.appendChild(buildGrid({}));
+
+    const n = bands.length;
+    const act = bandPos < n ? bands[bandPos] : null;
+
+    const bandHost = el('div', 'latticeBandHost');
+    host.appendChild(bandHost);
+    renderBandStrip(bandHost);
+
+    if (!act){
+      setTimeout(() => { stage = 'finished'; render(); }, 700);
+      return;
+    }
+
+    const exprParts = act.contributors.slice();
+    let exprStr = exprParts.length ? exprParts.join(' + ') : '0';
+    if (act.carryIn) exprStr += (exprParts.length ? ' + ' : '') + act.carryIn + ' carried in';
+    host.appendChild(el('p', 'stagePrompt', `Add this diagonal: ${exprStr}.`));
+    if (bandPos < n - 1){
+      host.appendChild(el('div', 'quotHint', 'Type the digit below the line. If the total is 10 or more, write the carried ten in the small box above the next diagonal too — then check them together.'));
+    } else {
+      host.appendChild(el('div', 'quotHint', 'This is the last diagonal — just type the digit below the line.'));
+    }
+
+    const checkRow = el('div', 'checkRow');
+    const answerInput = document.createElement('input');
+    answerInput.type = 'text'; answerInput.inputMode = 'numeric'; answerInput.className = 'blankInput'; answerInput.id = 'lat-bandAnswerInput'; answerInput.style.width = '60px';
+    const checkBtn = el('button', 'btn', 'Check');
+    checkRow.appendChild(answerInput); checkRow.appendChild(checkBtn);
+    host.appendChild(checkRow);
+    const fb = el('div', 'checkFeedback');
+    host.appendChild(fb);
+
+    function doCheck(){
+      const val = parseInt(answerInput.value, 10);
+      if (isNaN(val)){ fb.textContent = 'Type a number in the box first.'; fb.className = 'checkFeedback bad'; return; }
+      const isLast = bandPos === n - 1;
+      const carryEl = isLast ? null : document.getElementById('lat-carryInput' + (bandPos + 1));
+      const rawCarry = carryEl ? carryEl.value.trim() : '';
+      const carryVal = rawCarry === '' ? 0 : parseInt(rawCarry, 10);
+      const answerOk = val === act.digit;
+      const carryOk = isLast ? true : (carryVal === act.carryOut);
+
+      if (answerOk && carryOk){
+        fb.textContent = '✓ Correct!'; fb.className = 'checkFeedback good';
+        bandPos++;
+        answerInput.disabled = true; checkBtn.disabled = true;
+        setTimeout(render, 350);
+        return;
+      }
+      const rawSum = exprParts.reduce((s, v) => s + v, 0) + act.carryIn;
+      if (!answerOk && act.carryOut === 1 && val === rawSum){
+        fb.textContent = "That's the full total for this diagonal. Write just the last digit here, and carry the other digit into the box above the next diagonal.";
+      } else if (!answerOk){
+        fb.textContent = '✗ Not quite — check the digit and try again.';
+      } else if (act.carryOut >= 1){
+        fb.textContent = "The digit is right, but this diagonal totals 10 or more — don't forget to carry.";
+      } else {
+        fb.textContent = "The digit is right, but check the carry box — this diagonal doesn't need one.";
+      }
+      fb.className = 'checkFeedback bad';
+      if (!answerOk){ answerInput.value = ''; answerInput.focus(); }
+      if (!carryOk && carryEl){ carryEl.value = ''; if (answerOk) carryEl.focus(); }
+    }
+    checkBtn.onclick = doCheck;
+    answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    setTimeout(() => answerInput.focus(), 30);
+  }
+
+  function renderBandStrip(bandHost){
+    bandHost.innerHTML = '';
+    const n = bands.length;
+    const carryRow = el('div', 'latticeDccRow');
+    const ansRow = el('div', 'latticeDccRow');
+    for (let i = n - 1; i >= 0; i--){
+      const band = bands[i];
+      const solvedHere = i < bandPos;
+      const isActive = i === bandPos;
+      if (i === 0){
+        carryRow.appendChild(el('div', 'latticeCarryCell'));
+      } else if (solvedHere){
+        carryRow.appendChild(el('div', 'latticeCarryCell', band.carryIn ? '+' + band.carryIn : ''));
+      } else {
+        const wrap = el('div', 'latticeCarryCell');
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.inputMode = 'numeric'; inp.maxLength = 1; inp.autocomplete = 'off';
+        inp.className = 'latticeCarryInput'; inp.id = 'lat-carryInput' + i;
+        wrap.appendChild(inp);
+        carryRow.appendChild(wrap);
+      }
+      if (solvedHere) ansRow.appendChild(el('div', 'latticeAnswerCell', String(band.digit)));
+      else if (isActive) ansRow.appendChild(el('div', 'latticeAnswerCell placeholder active', '?'));
+      else ansRow.appendChild(el('div', 'latticeAnswerCell placeholder', ''));
+    }
+    bandHost.appendChild(carryRow);
+    bandHost.appendChild(ansRow);
+    if (bandPos > 0){
+      bandHost.querySelectorAll('.latticeCarryInput').forEach(inp => {
+        inp.addEventListener('input', () => { inp.value = inp.value.replace(/[^0-9]/g, '').slice(0, 1); });
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter'){ const b = document.querySelector('#lat-mainHost .checkRow .btn'); if (b) b.click(); } });
+      });
+    }
+  }
+
+  function renderFinished(host){
+    const aVal = A_DIGITS.join(''), bVal = B_DIGITS.join('');
+    host.appendChild(buildGrid({}));
+    const bandHost = el('div', 'latticeBandHost');
+    host.appendChild(bandHost);
+    renderBandStrip(bandHost);
+    const box = el('div', 'finishBox');
+    box.appendChild(el('div', 'headline', 'Finished!'));
+    const p = document.createElement('p');
+    p.innerHTML = `${aVal} × ${bVal} = <span class="ans">${finalAnswerStr()}</span>`;
+    box.appendChild(p);
+    host.appendChild(box);
+  }
+
+  function start(aStr, bStr){
+    prepareGrid(aStr, bStr);
+    document.getElementById('lat-setup').style.display = 'none';
+    document.getElementById('lat-presentation').style.display = 'block';
+    render();
+  }
+
+  document.getElementById('lat-startBtn').addEventListener('click', () => {
+    const mode = activePill(modePills, 'mode');
+    let aStr, bStr;
+    if (mode === 'custom'){
+      aStr = document.getElementById('lat-aInput').value.trim();
+      bStr = document.getElementById('lat-bInput').value.trim();
+    } else {
+      const aDigits = parseInt(activePill(document.getElementById('lat-aDigitsPills'), 'digits'), 10);
+      const bDigits = parseInt(activePill(document.getElementById('lat-bDigitsPills'), 'digits'), 10);
+      aStr = randomDigits(aDigits);
+      bStr = randomDigits(bDigits);
+    }
+    if (!/^[0-9]+$/.test(aStr) || !/^[0-9]+$/.test(bStr)) return;
+    start(aStr, bStr);
+  });
+  document.getElementById('lat-resetBtn').addEventListener('click', () => {
+    document.getElementById('lat-setup').style.display = 'block';
+    document.getElementById('lat-presentation').style.display = 'none';
+  });
 })();
 </script>
 
