@@ -518,6 +518,13 @@
   .subBadgeRow s{ color: var(--ink-soft); font-weight:600; }
   .subBadgeRow .plusTen{ color: var(--exchange); }
   .subRule{ border-top: 4px solid var(--ink); height:0; align-self:end; margin-bottom:3px; }
+  .subDecimalPoint{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:700; font-size:36px;
+    width:16px;
+    display:flex; align-items:flex-end; justify-content:center;
+    color: var(--ink); padding-bottom:2px;
+  }
   .subAnswerCell{
     font-family:'IBM Plex Mono', monospace;
     font-size:36px; font-weight:700;
@@ -600,6 +607,7 @@
     .subDigitCell.twoDigit, .subAnswerCell.twoDigit{ font-size:20px; }
     .subOpCell{ font-size:26px; }
     .carryCell, .carryInput{ width:50px; font-size:15px; height:22px; line-height:22px; }
+    .subDecimalPoint{ width:12px; font-size:26px; }
   }
 
   /* ---- L-shape perimeter tool specific styles ---- */
@@ -943,8 +951,12 @@
       </div>
     </div>
     <div class="field">
-      <label for="cs-digitCountInput">Number of digits</label>
+      <label for="cs-digitCountInput">Whole number digits</label>
       <input id="cs-digitCountInput" type="number" inputmode="numeric" min="2" max="8" value="3" style="width:80px; font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
+    </div>
+    <div class="field">
+      <label for="cs-decimalCountInput">Decimal places</label>
+      <input id="cs-decimalCountInput" type="number" inputmode="numeric" min="0" max="3" value="0" style="width:80px; font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
     </div>
     <button class="btn" id="cs-startBtn">Start</button>
   </div>
@@ -998,8 +1010,12 @@
       </div>
     </div>
     <div class="field">
-      <label for="ca-digitCountInput">Number of digits</label>
+      <label for="ca-digitCountInput">Whole number digits</label>
       <input id="ca-digitCountInput" type="number" inputmode="numeric" min="2" max="8" value="3" style="width:80px; font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
+    </div>
+    <div class="field">
+      <label for="ca-decimalCountInput">Decimal places</label>
+      <input id="ca-decimalCountInput" type="number" inputmode="numeric" min="0" max="3" value="0" style="width:80px; font-family:'IBM Plex Mono', monospace; font-size:20px; font-weight:600; padding:8px 10px; border:1.5px solid var(--line); border-radius:7px; background:#fff; color:var(--ink); outline:none;">
     </div>
     <button class="btn" id="ca-startBtn">Start</button>
   </div>
@@ -2088,24 +2104,42 @@ function finish(){
 (function(){
 /* ---------- chimney-sum subtraction engine ---------- */
 
-function columnLabelsFor(n){
+function columnLabelsFor(wholeN, decimalN){
   const all = ['Ten Millions','Millions','Hundred Thousands','Ten Thousands','Thousands','Hundreds','Tens','Units'];
-  const capped = Math.min(n, all.length);
-  return all.slice(all.length - capped);
+  const capped = Math.min(wholeN, all.length);
+  const wholeLabels = all.slice(all.length - capped);
+  const decimalNames = ['Tenths','Hundredths','Thousandths'];
+  return wholeLabels.concat(decimalNames.slice(0, decimalN || 0));
 }
 
-function generateRandomSub(n){
-  const min = Math.pow(10, n - 1);
-  const max = Math.pow(10, n) - 1;
-  let top, bottom;
+function randomDigits(n){
+  const digits = [];
+  for (let i = 0; i < n; i++) digits.push(Math.floor(Math.random() * 10));
+  return digits;
+}
+
+function generateRandomSub(wholeN, decimalN){
+  const min = Math.pow(10, wholeN - 1);
+  const max = Math.pow(10, wholeN) - 1;
+  let top, bottom, topDec, bottomDec;
   do {
     top = min + Math.floor(Math.random() * (max - min + 1));
     bottom = min + Math.floor(Math.random() * (max - min + 1));
-  } while (bottom >= top);
+    topDec = randomDigits(decimalN);
+    bottomDec = randomDigits(decimalN);
+  } while (bottom > top || (bottom === top && parseInt(bottomDec.join('') || '0', 10) >= parseInt(topDec.join('') || '0', 10)));
   return {
-    top: String(top).split('').map(Number),
-    bottom: String(bottom).split('').map(Number)
+    top: String(top).split('').map(Number).concat(topDec),
+    bottom: String(bottom).split('').map(Number).concat(bottomDec)
   };
+}
+
+function formatDecimal(digits, wholeN, decimalN){
+  const wholeStr = digits.slice(0, wholeN).join('');
+  const wholeVal = parseInt(wholeStr, 10);
+  if (!decimalN) return String(wholeVal);
+  const decStr = digits.slice(wholeN).join('');
+  return wholeVal + '.' + decStr;
 }
 
 /* ---------- setup UI ---------- */
@@ -2119,6 +2153,8 @@ document.querySelectorAll('#cs-modePills .pill').forEach(b => {
 
 /* ---------- state ---------- */
 let colCount = 3;
+let wholeDigits = 3;     // number of columns before the decimal point
+let decimalPlaces = 0;   // number of columns after the decimal point
 let topOriginal = [];    // fixed original top digits, left-to-right
 let bottomDigits = [];   // fixed bottom digits, left-to-right
 let effectiveTop = [];   // top digits after any exchanges applied
@@ -2135,11 +2171,18 @@ let attemptedThisColumn = false; // true once the pupil has pressed Check at lea
 
 document.getElementById('cs-startBtn').addEventListener('click', () => {
   const digitInput = document.getElementById('cs-digitCountInput');
+  const decimalInput = document.getElementById('cs-decimalCountInput');
   let requested = parseInt(digitInput.value, 10);
   if (isNaN(requested)) requested = 3;
   requested = Math.max(2, Math.min(8, requested));
   digitInput.value = requested;
-  colCount = requested;
+  let requestedDecimal = parseInt(decimalInput.value, 10);
+  if (isNaN(requestedDecimal)) requestedDecimal = 0;
+  requestedDecimal = Math.max(0, Math.min(3, requestedDecimal));
+  decimalInput.value = requestedDecimal;
+  wholeDigits = requested;
+  decimalPlaces = requestedDecimal;
+  colCount = wholeDigits + decimalPlaces;
   wrongWayWarning = false;
   hasMadeError = false;
   attemptedThisColumn = false;
@@ -2148,7 +2191,7 @@ document.getElementById('cs-startBtn').addEventListener('click', () => {
   receivedTen = new Array(colCount).fill(false);
 
   if (csMode === 'random'){
-    const gen = generateRandomSub(colCount);
+    const gen = generateRandomSub(wholeDigits, decimalPlaces);
     topOriginal = gen.top;
     bottomDigits = gen.bottom;
     effectiveTop = gen.top.slice();
@@ -2182,8 +2225,12 @@ document.getElementById('cs-numbersCheckBtn').addEventListener('click', finalize
 document.getElementById('cs-checkBtn').addEventListener('click', doCheck);
 
 /* ---------- grid building ---------- */
+function gridColFor(i){
+  return i + 2 + (decimalPlaces > 0 && i >= wholeDigits ? 1 : 0);
+}
+
 function topCellHTML(i){
-  const col = i + 2;
+  const col = gridColFor(i);
   if (composeMode){
     return `<input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subComposeInput" id="cs-composeTop${i}" style="grid-row:2;grid-column:${col};">`;
   }
@@ -2219,7 +2266,7 @@ function topCellHTML(i){
 }
 
 function bottomCellHTML(i){
-  const col = i + 2;
+  const col = gridColFor(i);
   if (composeMode){
     return `<input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subComposeInput" id="cs-composeBottom${i}" style="grid-row:3;grid-column:${col};">`;
   }
@@ -2229,7 +2276,7 @@ function bottomCellHTML(i){
 }
 
 function answerCellHTML(i){
-  const col = i + 2;
+  const col = gridColFor(i);
   if (composeMode || !numbersValid){
     return `<div class="subAnswerCell placeholder" style="grid-row:5;grid-column:${col};">0</div>`;
   }
@@ -2247,12 +2294,15 @@ function answerCellHTML(i){
 }
 
 function buildGridHTML(){
-  const labels = columnLabelsFor(colCount);
+  const labels = columnLabelsFor(wholeDigits, decimalPlaces);
   const selectable = colState === 'chooseStart';
+  const hasDecimal = decimalPlaces > 0;
+  const dotCol = wholeDigits + 2;
+  const totalCols = colCount + (hasDecimal ? 1 : 0);
   let html = '';
 
   html += `<div style="grid-row:1;grid-column:1;"></div>`;
-  labels.forEach((lab, i) => { html += `<div class="subLabel ${selectable ? 'colClickable' : ''}" data-colidx="${i}" style="grid-row:1;grid-column:${i + 2};">${lab}</div>`; });
+  labels.forEach((lab, i) => { html += `<div class="subLabel ${selectable ? 'colClickable' : ''}" data-colidx="${i}" style="grid-row:1;grid-column:${gridColFor(i)};">${lab}</div>`; });
 
   html += `<div style="grid-row:2;grid-column:1;"></div>`;
   for (let i = 0; i < colCount; i++) html += topCellHTML(i);
@@ -2260,10 +2310,16 @@ function buildGridHTML(){
   html += `<div class="subOpCell" style="grid-row:3;grid-column:1;">&minus;</div>`;
   for (let i = 0; i < colCount; i++) html += bottomCellHTML(i);
 
-  html += `<div class="subRule" style="grid-row:4;grid-column:2 / ${colCount + 2};"></div>`;
+  html += `<div class="subRule" style="grid-row:4;grid-column:2 / ${totalCols + 2};"></div>`;
 
   html += `<div style="grid-row:5;grid-column:1;"></div>`;
   for (let i = 0; i < colCount; i++) html += answerCellHTML(i);
+
+  if (hasDecimal){
+    html += `<div class="subDecimalPoint" style="grid-row:2;grid-column:${dotCol};">.</div>`;
+    html += `<div class="subDecimalPoint" style="grid-row:3;grid-column:${dotCol};">.</div>`;
+    html += `<div class="subDecimalPoint" style="grid-row:5;grid-column:${dotCol};">.</div>`;
+  }
 
   return html;
 }
@@ -2337,7 +2393,7 @@ function finalizeNumbers(){
     topVals.push(tv); bottomVals.push(bv);
   }
   if (topVals[0] === 0){
-    feedback.textContent = `Make sure the top number is a genuine ${N}-digit number (no leading zero).`;
+    feedback.textContent = `Make sure the top number is a genuine ${wholeDigits}-digit number before the decimal point (no leading zero).`;
     feedback.className = 'checkFeedback bad';
     return;
   }
@@ -2461,10 +2517,10 @@ function updateWrongWayBanner(){
 function updateQuestionLabel(){
   const questionLabel = document.getElementById('cs-questionLabel');
   if (!questionLabel || composeMode) return;
-  const topNum = parseInt(topOriginal.join(''), 10);
-  const bottomNum = parseInt(bottomDigits.join(''), 10);
+  const topStr = formatDecimal(topOriginal, wholeDigits, decimalPlaces);
+  const bottomStr = formatDecimal(bottomDigits, wholeDigits, decimalPlaces);
   if (hasMadeError || colState === 'finished'){
-    questionLabel.textContent = `${topNum} − ${bottomNum}`;
+    questionLabel.textContent = `${topStr} − ${bottomStr}`;
   } else {
     questionLabel.textContent = '';
   }
@@ -2473,7 +2529,7 @@ function updateQuestionLabel(){
 function updateStagePrompt(){
   const stagePrompt = document.getElementById('cs-stagePrompt');
   if (!stagePrompt || colState !== 'solving') return;
-  const labels = columnLabelsFor(colCount);
+  const labels = columnLabelsFor(wholeDigits, decimalPlaces);
   const label = labels[activeCol];
   const need = bottomDigits[activeCol];
   const have = effectiveTop[activeCol];
@@ -2487,7 +2543,7 @@ function updateStagePrompt(){
 function updateQuotHint(){
   const quotHint = document.getElementById('cs-quotHint');
   if (!quotHint || colState !== 'solving') return;
-  const labels = columnLabelsFor(colCount);
+  const labels = columnLabelsFor(wholeDigits, decimalPlaces);
   const need = bottomDigits[activeCol];
   const have = effectiveTop[activeCol];
   if (have < need && activeCol > 0 && attemptedThisColumn){
@@ -2498,12 +2554,13 @@ function updateQuotHint(){
 }
 
 function renderFinish(){
-  const topNum = parseInt(topOriginal.join(''), 10);
-  const bottomNum = parseInt(bottomDigits.join(''), 10);
-  const answerNum = topNum - bottomNum;
+  const topStr = formatDecimal(topOriginal, wholeDigits, decimalPlaces);
+  const bottomStr = formatDecimal(bottomDigits, wholeDigits, decimalPlaces);
+  const answerVal = parseFloat(topStr) - parseFloat(bottomStr);
+  const answerStr = decimalPlaces > 0 ? answerVal.toFixed(decimalPlaces) : String(answerVal);
   return `<div class="finishBox">
     <div class="headline">Solved!</div>
-    <p><span class="n">${topNum}</span> &minus; <span class="n">${bottomNum}</span> = <span class="ans">${answerNum}</span></p>
+    <p><span class="n">${topStr}</span> &minus; <span class="n">${bottomStr}</span> = <span class="ans">${answerStr}</span></p>
   </div>`;
 }
 
@@ -2521,7 +2578,10 @@ function render(){
   const narrowScreen = window.innerWidth < 480;
   const colPx = narrowScreen ? 50 : 66;
   const leadPx = narrowScreen ? 30 : 40;
-  grid.style.gridTemplateColumns = `${leadPx}px ` + Array(colCount).fill(`${colPx}px`).join(' ');
+  const dotPx = narrowScreen ? 12 : 16;
+  const colWidths = Array(colCount).fill(`${colPx}px`);
+  if (decimalPlaces > 0) colWidths.splice(wholeDigits, 0, `${dotPx}px`);
+  grid.style.gridTemplateColumns = `${leadPx}px ` + colWidths.join(' ');
   grid.innerHTML = buildGridHTML();
   attachGridHandlers();
   updateWrongWayBanner();
@@ -2585,21 +2645,37 @@ function render(){
 (function(){
 /* ---------- chimney-sum addition engine ---------- */
 
-function columnLabelsFor(n){
+function columnLabelsFor(wholeN, decimalN){
   const all = ['Ten Millions','Millions','Hundred Thousands','Ten Thousands','Thousands','Hundreds','Tens','Units'];
-  const capped = Math.min(n, all.length);
-  return all.slice(all.length - capped);
+  const capped = Math.min(wholeN, all.length);
+  const wholeLabels = all.slice(all.length - capped);
+  const decimalNames = ['Tenths','Hundredths','Thousandths'];
+  return wholeLabels.concat(decimalNames.slice(0, decimalN || 0));
 }
 
-function generateRandomAdd(n){
-  const min = Math.pow(10, n - 1);
-  const max = Math.pow(10, n) - 1;
+function randomDigits(n){
+  const digits = [];
+  for (let i = 0; i < n; i++) digits.push(Math.floor(Math.random() * 10));
+  return digits;
+}
+
+function generateRandomAdd(wholeN, decimalN){
+  const min = Math.pow(10, wholeN - 1);
+  const max = Math.pow(10, wholeN) - 1;
   const top = min + Math.floor(Math.random() * (max - min + 1));
   const bottom = min + Math.floor(Math.random() * (max - min + 1));
   return {
-    top: String(top).split('').map(Number),
-    bottom: String(bottom).split('').map(Number)
+    top: String(top).split('').map(Number).concat(randomDigits(decimalN)),
+    bottom: String(bottom).split('').map(Number).concat(randomDigits(decimalN))
   };
+}
+
+function formatDecimal(digits, wholeN, decimalN){
+  const wholeStr = digits.slice(0, wholeN).join('');
+  const wholeVal = parseInt(wholeStr, 10);
+  if (!decimalN) return String(wholeVal);
+  const decStr = digits.slice(wholeN).join('');
+  return wholeVal + '.' + decStr;
 }
 
 /* ---------- setup UI ---------- */
@@ -2613,6 +2689,8 @@ document.querySelectorAll('#ca-modePills .pill').forEach(b => {
 
 /* ---------- state ---------- */
 let colCount = 3;
+let wholeDigits = 3;     // number of columns before the decimal point
+let decimalPlaces = 0;   // number of columns after the decimal point
 let topDigits = [];      // fixed top digits, left-to-right (index 0 = most significant)
 let bottomDigits = [];   // fixed bottom digits, left-to-right
 let carryDigits = [];    // per column: the confirmed carry digit sitting above it (null if none)
@@ -2628,11 +2706,18 @@ let hasMadeError = false; // true once the pupil has got something wrong in this
 
 document.getElementById('ca-startBtn').addEventListener('click', () => {
   const digitInput = document.getElementById('ca-digitCountInput');
+  const decimalInput = document.getElementById('ca-decimalCountInput');
   let requested = parseInt(digitInput.value, 10);
   if (isNaN(requested)) requested = 3;
   requested = Math.max(2, Math.min(8, requested));
   digitInput.value = requested;
-  colCount = requested;
+  let requestedDecimal = parseInt(decimalInput.value, 10);
+  if (isNaN(requestedDecimal)) requestedDecimal = 0;
+  requestedDecimal = Math.max(0, Math.min(3, requestedDecimal));
+  decimalInput.value = requestedDecimal;
+  wholeDigits = requested;
+  decimalPlaces = requestedDecimal;
+  colCount = wholeDigits + decimalPlaces;
   hasMadeError = false;
   solvedAnswer = new Array(colCount).fill(null);
   carryDigits = new Array(colCount).fill(null);
@@ -2641,7 +2726,7 @@ document.getElementById('ca-startBtn').addEventListener('click', () => {
   finalCarryConfirmed = false;
 
   if (caMode === 'random'){
-    const gen = generateRandomAdd(colCount);
+    const gen = generateRandomAdd(wholeDigits, decimalPlaces);
     topDigits = gen.top;
     bottomDigits = gen.bottom;
     composeMode = false;
@@ -2672,8 +2757,12 @@ document.getElementById('ca-numbersCheckBtn').addEventListener('click', finalize
 document.getElementById('ca-checkBtn').addEventListener('click', doCheck);
 
 /* ---------- grid building ---------- */
+function gridColFor(i){
+  return i + 3 + (decimalPlaces > 0 && i >= wholeDigits ? 1 : 0);
+}
+
 function carryCellHTML(i){
-  const col = i + 3;
+  const col = gridColFor(i);
   if (composeMode || !numbersValid || i === colCount - 1){
     return `<div style="grid-row:1;grid-column:${col};"></div>`;
   }
@@ -2688,7 +2777,7 @@ function carryCellHTML(i){
 }
 
 function topCellHTML(i){
-  const col = i + 3;
+  const col = gridColFor(i);
   if (composeMode){
     return `<input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subComposeInput" id="ca-composeTop${i}" style="grid-row:2;grid-column:${col};">`;
   }
@@ -2699,7 +2788,7 @@ function topCellHTML(i){
 }
 
 function bottomCellHTML(i){
-  const col = i + 3;
+  const col = gridColFor(i);
   if (composeMode){
     return `<input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subComposeInput" id="ca-composeBottom${i}" style="grid-row:3;grid-column:${col};">`;
   }
@@ -2710,7 +2799,7 @@ function bottomCellHTML(i){
 }
 
 function answerCellHTML(i){
-  const col = i + 3;
+  const col = gridColFor(i);
   if (composeMode || !numbersValid){
     return `<div class="subAnswerCell placeholder" style="grid-row:5;grid-column:${col};">0</div>`;
   }
@@ -2737,6 +2826,9 @@ function overflowCellHTML(){
 }
 
 function buildGridHTML(){
+  const hasDecimal = decimalPlaces > 0;
+  const dotCol = wholeDigits + 3;
+  const totalCols = colCount + (hasDecimal ? 1 : 0);
   let html = '';
 
   html += `<div style="grid-row:1;grid-column:1;"></div>`;
@@ -2751,11 +2843,17 @@ function buildGridHTML(){
   html += `<div class="subOpCell" style="grid-row:3;grid-column:2;">+</div>`;
   for (let i = 0; i < colCount; i++) html += bottomCellHTML(i);
 
-  html += `<div class="subRule" style="grid-row:4;grid-column:3 / ${colCount + 3};"></div>`;
+  html += `<div class="subRule" style="grid-row:4;grid-column:3 / ${totalCols + 3};"></div>`;
 
   html += overflowCellHTML();
   html += `<div style="grid-row:5;grid-column:2;"></div>`;
   for (let i = 0; i < colCount; i++) html += answerCellHTML(i);
+
+  if (hasDecimal){
+    html += `<div class="subDecimalPoint" style="grid-row:2;grid-column:${dotCol};">.</div>`;
+    html += `<div class="subDecimalPoint" style="grid-row:3;grid-column:${dotCol};">.</div>`;
+    html += `<div class="subDecimalPoint" style="grid-row:5;grid-column:${dotCol};">.</div>`;
+  }
 
   return html;
 }
@@ -2818,7 +2916,7 @@ function finalizeNumbers(){
     topVals.push(tv); bottomVals.push(bv);
   }
   if (topVals[0] === 0 || bottomVals[0] === 0){
-    feedback.textContent = `Make sure both numbers are genuine ${N}-digit numbers (no leading zero).`;
+    feedback.textContent = `Make sure both numbers are genuine ${wholeDigits}-digit numbers before the decimal point (no leading zero).`;
     feedback.className = 'checkFeedback bad';
     return;
   }
@@ -2911,22 +3009,23 @@ function doCheck(){
 function updateQuestionLabel(){
   const questionLabel = document.getElementById('ca-questionLabel');
   if (!questionLabel || composeMode) return;
-  const topNum = parseInt(topDigits.join(''), 10);
-  const bottomNum = parseInt(bottomDigits.join(''), 10);
+  const topStr = formatDecimal(topDigits, wholeDigits, decimalPlaces);
+  const bottomStr = formatDecimal(bottomDigits, wholeDigits, decimalPlaces);
   if (hasMadeError || colState === 'finished'){
-    questionLabel.textContent = `${topNum} + ${bottomNum}`;
+    questionLabel.textContent = `${topStr} + ${bottomStr}`;
   } else {
     questionLabel.textContent = '';
   }
 }
 
 function renderFinish(){
-  const topNum = parseInt(topDigits.join(''), 10);
-  const bottomNum = parseInt(bottomDigits.join(''), 10);
-  const answerNum = topNum + bottomNum;
+  const topStr = formatDecimal(topDigits, wholeDigits, decimalPlaces);
+  const bottomStr = formatDecimal(bottomDigits, wholeDigits, decimalPlaces);
+  const answerVal = parseFloat(topStr) + parseFloat(bottomStr);
+  const answerStr = decimalPlaces > 0 ? answerVal.toFixed(decimalPlaces) : String(answerVal);
   return `<div class="finishBox">
     <div class="headline">Solved!</div>
-    <p><span class="n">${topNum}</span> + <span class="n">${bottomNum}</span> = <span class="ans">${answerNum}</span></p>
+    <p><span class="n">${topStr}</span> + <span class="n">${bottomStr}</span> = <span class="ans">${answerStr}</span></p>
   </div>`;
 }
 
@@ -2944,7 +3043,10 @@ function render(){
   const narrowScreen = window.innerWidth < 480;
   const colPx = narrowScreen ? 50 : 66;
   const leadPx = narrowScreen ? 30 : 40;
-  grid.style.gridTemplateColumns = `${colPx}px ${leadPx}px ` + Array(colCount).fill(`${colPx}px`).join(' ');
+  const dotPx = narrowScreen ? 12 : 16;
+  const colWidths = Array(colCount).fill(`${colPx}px`);
+  if (decimalPlaces > 0) colWidths.splice(wholeDigits, 0, `${dotPx}px`);
+  grid.style.gridTemplateColumns = `${colPx}px ${leadPx}px ` + colWidths.join(' ');
   grid.innerHTML = buildGridHTML();
   attachGridHandlers();
 
@@ -2965,7 +3067,7 @@ function render(){
   updateQuestionLabel();
 
   if (colState === 'solving'){
-    const labels = columnLabelsFor(colCount);
+    const labels = columnLabelsFor(wholeDigits, decimalPlaces);
     const label = labels[activeCol];
     stagePrompt.innerHTML = hasMadeError
       ? `<span class="n">${label}</span> column: ${topDigits[activeCol]} + ${bottomDigits[activeCol]}${carryDigits[activeCol] ? ' + ' + carryDigits[activeCol] : ''}`
