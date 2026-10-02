@@ -574,6 +574,18 @@
   }
   .carryInput:focus{ background:#fdf0f2; }
   .carryInput::-webkit-outer-spin-button, .carryInput::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .subDigitCell.exchangeTarget{ background:#fdf6e3; border-radius:8px; }
+  .subExchangeInput{
+    width:56px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:30px; font-weight:700;
+    text-align:center;
+    border:none; border-bottom:3px solid var(--exchange);
+    background: transparent; color: var(--exchange); outline:none;
+    padding:0;
+  }
+  .subExchangeInput:focus{ border-bottom-color: var(--mark-deep); background:#fdf0f2; }
+  .subExchangeInput::-webkit-outer-spin-button, .subExchangeInput::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
   .exArrowBtn{
     position:absolute; top:-18px; right:-16px;
     width:30px; height:30px; border-radius:50%;
@@ -704,11 +716,24 @@
   .latticeGrid{ display:inline-grid; margin: 18px 0; }
   .latticeCornerCell{ width:54px; height:54px; }
   .latticeHeaderCell{
-    width:54px; height:54px; display:flex; align-items:center; justify-content:center;
+    position:relative; width:54px; height:54px; display:flex; align-items:center; justify-content:center;
     font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:22px;
     border:2px solid var(--ink); background:#fff;
   }
   .latticeHeaderCell.solved{ background:#fdf6e3; color: var(--mark-deep); }
+  .latticeDecimalDot{
+    position:absolute; bottom:1px; right:-6px; font-weight:700; font-size:22px;
+    color: var(--ink); pointer-events:none; line-height:1;
+  }
+  .latticeDecimalDotRow{
+    position:absolute; bottom:-13px; left:50%; transform:translateX(-50%);
+    font-weight:700; font-size:22px; color: var(--ink); pointer-events:none; line-height:1;
+  }
+  .latticeGridWrap{ position:relative; display:inline-block; }
+  .latticeDecimalSvg{ position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
+  .latticeDecimalMarker{ flex:0 0 14px; width:14px; text-align:center; font-family:'IBM Plex Mono', monospace; font-weight:700; }
+  .latticeDecimalMarker.carry{ height:22px; line-height:22px; }
+  .latticeDecimalMarker.ans{ height:32px; line-height:32px; font-size:26px; color: var(--mark-deep); }
   .latticeHeaderCell input{
     width:32px; text-align:center; font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:20px;
     border:1.5px solid var(--line); border-radius:6px; padding:4px 2px; outline:none; background:#fff; color:var(--ink);
@@ -989,7 +1014,7 @@
     </div>
   </div>
 
-  <p class="foot">Click the column you want to start with, then tap the small arrow above a digit in the top number to exchange a ten into the column on its right.</p>
+  <p class="foot">Click the column you want to start with, then tap the small arrow above a digit in the top number to start an exchange — type the new value into both columns yourself. Get it wrong and an arrow appears to do the exchange for you.</p>
 </div>
 </div>
 
@@ -1253,13 +1278,14 @@
       <div class="field" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;">
         <div>
           <label for="lat-aInput">First number</label>
-          <input id="lat-aInput" type="text" inputmode="numeric" value="236" class="shapeInput" style="width:120px;">
+          <input id="lat-aInput" type="text" inputmode="decimal" value="23.6" class="shapeInput" style="width:120px;">
         </div>
         <div>
           <label for="lat-bInput">Second number</label>
-          <input id="lat-bInput" type="text" inputmode="numeric" value="47" class="shapeInput" style="width:120px;">
+          <input id="lat-bInput" type="text" inputmode="decimal" value="4.7" class="shapeInput" style="width:120px;">
         </div>
       </div>
+      <div class="checkFeedback" id="lat-customFeedback"></div>
     </div>
     <div class="field" id="lat-digitFields">
       <label>Number of digits (random question)</label>
@@ -1276,6 +1302,25 @@
           <div class="pills" id="lat-bDigitsPills">
             <button class="pill active" data-digits="2">2-digit</button>
             <button class="pill" data-digits="3">3-digit</button>
+          </div>
+        </div>
+      </div>
+      <label style="margin-top:12px;">Decimal places (random question)</label>
+      <div style="display:flex; gap:20px; flex-wrap:wrap;">
+        <div>
+          <label style="font-weight:400; font-size:12px;">First number</label>
+          <div class="pills" id="lat-aDecimalPills">
+            <button class="pill active" data-decimals="0">0</button>
+            <button class="pill" data-decimals="1">1</button>
+            <button class="pill" data-decimals="2">2</button>
+          </div>
+        </div>
+        <div>
+          <label style="font-weight:400; font-size:12px;">Second number</label>
+          <div class="pills" id="lat-bDecimalPills">
+            <button class="pill active" data-decimals="0">0</button>
+            <button class="pill" data-decimals="1">1</button>
+            <button class="pill" data-decimals="2">2</button>
           </div>
         </div>
       </div>
@@ -2168,6 +2213,8 @@ let activeCol = null;    // index (0 = leftmost / most significant) of the colum
 let wrongWayWarning = false; // true once the pupil has subtracted top-from-bottom instead of bottom-from-top
 let hasMadeError = false; // true once the pupil has got something wrong in this sum — reveals the sum for the rest of it
 let attemptedThisColumn = false; // true once the pupil has pressed Check at least once on the current column — gates the "exchange needed" hint
+let exchangePending = null; // { from, to } while the pupil is editing both columns of an in-progress exchange
+let exchangeAttempted = false; // true once the pupil has got the current exchange wrong — reveals the auto-fix arrow
 
 document.getElementById('cs-startBtn').addEventListener('click', () => {
   const digitInput = document.getElementById('cs-digitCountInput');
@@ -2186,6 +2233,8 @@ document.getElementById('cs-startBtn').addEventListener('click', () => {
   wrongWayWarning = false;
   hasMadeError = false;
   attemptedThisColumn = false;
+  exchangePending = null;
+  exchangeAttempted = false;
   solvedAnswer = new Array(colCount).fill(null);
   givenAway = new Array(colCount).fill(false);
   receivedTen = new Array(colCount).fill(false);
@@ -2217,6 +2266,8 @@ document.getElementById('cs-resetBtn').addEventListener('click', () => {
   wrongWayWarning = false;
   hasMadeError = false;
   attemptedThisColumn = false;
+  exchangePending = null;
+  exchangeAttempted = false;
   document.getElementById('cs-presentation').style.display = 'none';
   document.getElementById('cs-setup').style.display = 'block';
 });
@@ -2234,6 +2285,16 @@ function topCellHTML(i){
   if (composeMode){
     return `<input type="text" inputmode="numeric" pattern="[0-9]" maxlength="1" autocomplete="off" class="subComposeInput" id="cs-composeTop${i}" style="grid-row:2;grid-column:${col};">`;
   }
+
+  if (exchangePending && (i === exchangePending.from || i === exchangePending.to)){
+    const isFrom = i === exchangePending.from;
+    const inputId = isFrom ? 'cs-exFromInput' : 'cs-exToInput';
+    const autoBtn = (isFrom && exchangeAttempted)
+      ? `<button type="button" class="exArrowBtn" data-exautoidx="${i}" title="Do the exchange for me">&rarr;</button>`
+      : '';
+    return `<div class="subDigitCell top exchangeTarget" data-colidx="${i}" style="grid-row:2;grid-column:${col};"><input type="text" inputmode="numeric" pattern="[0-9]" maxlength="2" autocomplete="off" class="subExchangeInput" id="${inputId}">${autoBtn}</div>`;
+  }
+
   const given = givenAway[i];
   const received = receivedTen[i];
   const val = effectiveTop[i];
@@ -2252,7 +2313,7 @@ function topCellHTML(i){
 
   let arrow = '';
   if (colState === 'solving' && i < colCount - 1){
-    const enabled = i < activeCol && effectiveTop[i] > 0 && !givenAway[i];
+    const enabled = !exchangePending && i < activeCol && effectiveTop[i] > 0 && !givenAway[i];
     arrow = `<button type="button" class="exArrowBtn" data-exidx="${i}" ${enabled ? '' : 'disabled'} title="Exchange a ten into the next column">&rarr;</button>`;
   }
 
@@ -2280,7 +2341,7 @@ function answerCellHTML(i){
   if (composeMode || !numbersValid){
     return `<div class="subAnswerCell placeholder" style="grid-row:5;grid-column:${col};">0</div>`;
   }
-  if (colState === 'solving' && i === activeCol){
+  if (colState === 'solving' && i === activeCol && !exchangePending){
     const correctVal = effectiveTop[i] - bottomDigits[i];
     const maxLen = correctVal >= 10 ? 2 : 1;
     const wideClass = maxLen === 2 ? ' wide' : '';
@@ -2328,14 +2389,29 @@ function attachGridHandlers(){
   const grid = document.getElementById('cs-subGrid');
   grid.querySelectorAll('.exArrowBtn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const i = Number(btn.dataset.exidx);
-      doExchange(i);
+      if (btn.dataset.exautoidx !== undefined){
+        doExchangeAuto(Number(btn.dataset.exautoidx));
+      } else {
+        doExchange(Number(btn.dataset.exidx));
+      }
     });
   });
   if (colState === 'chooseStart'){
     grid.querySelectorAll('[data-colidx]').forEach(el => {
       el.addEventListener('click', () => handleColumnStart(Number(el.dataset.colidx)));
     });
+  }
+  if (exchangePending){
+    const fromInput = document.getElementById('cs-exFromInput');
+    const toInput = document.getElementById('cs-exToInput');
+    if (fromInput && toInput){
+      [fromInput, toInput].forEach(inp => {
+        inp.addEventListener('input', () => { inp.value = inp.value.replace(/[^0-9]/g, '').slice(0, 2); });
+      });
+      fromInput.addEventListener('keydown', e => { if (e.key === 'Enter') toInput.focus(); });
+      toInput.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+      setTimeout(() => fromInput.focus(), 30);
+    }
   }
   if (composeMode){
     const order = [];
@@ -2367,12 +2443,55 @@ function attachGridHandlers(){
 }
 
 function doExchange(i){
-  if (givenAway[i] || effectiveTop[i] <= 0) return;
+  if (exchangePending || givenAway[i] || effectiveTop[i] <= 0) return;
+  exchangePending = { from: i, to: i + 1 };
+  exchangeAttempted = false;
+  render();
+}
+
+function applyExchange(i){
   givenAway[i] = true;
   effectiveTop[i] -= 1;
   receivedTen[i + 1] = true;
   effectiveTop[i + 1] += 10;
+  exchangePending = null;
+  exchangeAttempted = false;
+}
+
+function doExchangeAuto(i){
+  if (!exchangePending || exchangePending.from !== i) return;
+  applyExchange(i);
   render();
+}
+
+function doCheckExchange(){
+  if (!exchangePending) return;
+  const fromInput = document.getElementById('cs-exFromInput');
+  const toInput = document.getElementById('cs-exToInput');
+  const checkFeedback = document.getElementById('cs-checkFeedback');
+  if (!fromInput || !toInput) return;
+  const fromVal = parseInt(fromInput.value, 10);
+  const toVal = parseInt(toInput.value, 10);
+  if (isNaN(fromVal) || isNaN(toVal)){
+    checkFeedback.textContent = 'Fill in both boxes first.';
+    checkFeedback.className = 'checkFeedback bad';
+    return;
+  }
+  const i = exchangePending.from;
+  const expectedFrom = effectiveTop[i] - 1;
+  const expectedTo = effectiveTop[i + 1] + 10;
+  if (fromVal === expectedFrom && toVal === expectedTo){
+    checkFeedback.textContent = 'Correct!';
+    checkFeedback.className = 'checkFeedback good';
+    applyExchange(i);
+    setTimeout(render, 350);
+  } else {
+    exchangeAttempted = true;
+    render();
+    const fb = document.getElementById('cs-checkFeedback');
+    fb.textContent = 'Not quite — check both columns, or press the arrow to do the exchange for you.';
+    fb.className = 'checkFeedback bad';
+  }
 }
 
 /* ---------- number entry (custom mode) ---------- */
@@ -2443,6 +2562,7 @@ function handleColumnStart(idx){
 /* ---------- solving ---------- */
 function doCheck(){
   if (colState !== 'solving') return;
+  if (exchangePending){ doCheckExchange(); return; }
   const input = document.getElementById('cs-answerInput');
   const checkFeedback = document.getElementById('cs-checkFeedback');
   if (!input) return;
@@ -2530,6 +2650,12 @@ function updateStagePrompt(){
   const stagePrompt = document.getElementById('cs-stagePrompt');
   if (!stagePrompt || colState !== 'solving') return;
   const labels = columnLabelsFor(wholeDigits, decimalPlaces);
+  if (exchangePending){
+    const fromLabel = labels[exchangePending.from];
+    const toLabel = labels[exchangePending.to];
+    stagePrompt.innerHTML = `Exchanging a ten: <span class="n">${fromLabel}</span> &rarr; <span class="n">${toLabel}</span>`;
+    return;
+  }
   const label = labels[activeCol];
   const need = bottomDigits[activeCol];
   const have = effectiveTop[activeCol];
@@ -2544,6 +2670,13 @@ function updateQuotHint(){
   const quotHint = document.getElementById('cs-quotHint');
   if (!quotHint || colState !== 'solving') return;
   const labels = columnLabelsFor(wholeDigits, decimalPlaces);
+  if (exchangePending){
+    const i = exchangePending.from;
+    quotHint.textContent = exchangeAttempted
+      ? `Type the new value for each column — the ${labels[i]} column loses one ten, and the ${labels[i + 1]} column gains ten. Or press the arrow to do it for you.`
+      : `Type the new value for each column — the ${labels[i]} column loses one ten, and the ${labels[i + 1]} column gains ten.`;
+    return;
+  }
   const need = bottomDigits[activeCol];
   const have = effectiveTop[activeCol];
   if (have < need && activeCol > 0 && attemptedThisColumn){
@@ -4075,10 +4208,12 @@ function render(){
   }
 
   let A_DIGITS = [], B_DIGITS = [], nA = 0, nB = 0;
+  let aDecPlaces = 0, bDecPlaces = 0; // number of decimal digits in the top (A) and right-hand (B) numbers
   let cells = [];
   let cellOrder = [], cellPos = 0;
+  let cellAttemptFailed = false; // true once the pupil has got the current cell wrong — reveals the labelled tens/units fallback boxes
   let bands = [], bandPos = 0;
-  let stage = 'headers'; // 'headers' -> 'cells' -> 'diagonals' -> 'finished'
+  let stage = 'headers'; // 'headers' -> 'cells' -> 'diagonals' -> 'decimalPlace'? -> 'finished'
 
   const modePills = document.getElementById('lat-modePills');
   wirePills(modePills, 'mode', (mode) => {
@@ -4087,6 +4222,8 @@ function render(){
   });
   wirePills(document.getElementById('lat-aDigitsPills'), 'digits');
   wirePills(document.getElementById('lat-bDigitsPills'), 'digits');
+  wirePills(document.getElementById('lat-aDecimalPills'), 'decimals');
+  wirePills(document.getElementById('lat-bDecimalPills'), 'decimals');
 
   function randomDigits(n){
     let s = String(randInt(1, 9));
@@ -4094,9 +4231,31 @@ function render(){
     return s;
   }
 
-  function prepareGrid(aStr, bStr){
-    A_DIGITS = aStr.split('').map(Number);
-    B_DIGITS = bStr.split('').map(Number);
+  function randomDecimalDigits(n){
+    let s = '';
+    for (let i = 0; i < n; i++) s += String(randInt(0, 9));
+    return s;
+  }
+
+  function parseNumberStr(str){
+    str = (str || '').trim();
+    const m = /^(\d+)(?:\.(\d+))?$/.exec(str);
+    if (!m) return null;
+    return { digits: m[1] + (m[2] || ''), dec: m[2] ? m[2].length : 0 };
+  }
+
+  function formatNum(digits, dec){
+    const s = digits.join('');
+    if (!dec) return s;
+    const whole = s.slice(0, s.length - dec) || '0';
+    return whole + '.' + s.slice(s.length - dec);
+  }
+
+  function prepareGrid(aRaw, bRaw){
+    const aP = parseNumberStr(aRaw), bP = parseNumberStr(bRaw);
+    A_DIGITS = aP.digits.split('').map(Number);
+    B_DIGITS = bP.digits.split('').map(Number);
+    aDecPlaces = aP.dec; bDecPlaces = bP.dec;
     nA = A_DIGITS.length; nB = B_DIGITS.length;
     cells = [];
     for (let r = 0; r < nB; r++){
@@ -4110,6 +4269,7 @@ function render(){
     cellOrder = [];
     for (let r2 = 0; r2 < nB; r2++) for (let c2 = 0; c2 < nA; c2++) cellOrder.push([r2, c2]);
     cellPos = 0;
+    cellAttemptFailed = false;
     stage = 'headers';
   }
 
@@ -4140,8 +4300,26 @@ function render(){
     bandPos = 0;
   }
 
+  function rawBandDigitsStr(){
+    return bands.slice().reverse().map(b => b.digit).join('');
+  }
+
   function finalAnswerStr(){
-    return bands.slice().reverse().map(b => b.digit).join('').replace(/^0+(?=\d)/, '');
+    return rawBandDigitsStr().replace(/^0+(?=\d)/, '');
+  }
+
+  function totalDecPlaces(){
+    return aDecPlaces + bDecPlaces;
+  }
+
+  function finalAnswerDecimalStr(){
+    const totalDec = totalDecPlaces();
+    if (!totalDec) return finalAnswerStr();
+    let raw = rawBandDigitsStr();
+    while (raw.length <= totalDec) raw = '0' + raw;
+    const whole = raw.slice(0, raw.length - totalDec).replace(/^0+(?=\d)/, '') || '0';
+    const dec = raw.slice(raw.length - totalDec);
+    return whole + '.' + dec;
   }
 
   function buildGrid(opts){
@@ -4149,32 +4327,26 @@ function render(){
     const grid = el('div', 'latticeGrid');
     grid.style.gridTemplateColumns = `repeat(${nA + 1}, 54px)`;
     grid.style.gridTemplateRows = `repeat(${nB + 1}, 54px)`;
-    grid.appendChild(el('div', 'latticeCornerCell'));
+    const aSplit = nA - aDecPlaces; // column index where A's decimal digits begin
+    const bSplit = nB - bDecPlaces; // row index where B's decimal digits begin
 
     for (let c = 0; c < nA; c++){
+      let hc;
       if (opts.headerInputs){
-        const hc = el('div', 'latticeHeaderCell');
+        hc = el('div', 'latticeHeaderCell');
         const hi = document.createElement('input');
         hi.type = 'text'; hi.inputMode = 'numeric'; hi.maxLength = 1; hi.autocomplete = 'off';
         hi.id = 'lat-headA' + c;
         hc.appendChild(hi);
-        grid.appendChild(hc);
       } else {
-        grid.appendChild(el('div', 'latticeHeaderCell solved', String(A_DIGITS[c])));
+        hc = el('div', 'latticeHeaderCell solved', String(A_DIGITS[c]));
       }
+      if (aDecPlaces > 0 && c === aSplit - 1) hc.appendChild(el('span', 'latticeDecimalDot', '.'));
+      grid.appendChild(hc);
     }
+    grid.appendChild(el('div', 'latticeCornerCell'));
 
     for (let r = 0; r < nB; r++){
-      if (opts.headerInputs){
-        const hc2 = el('div', 'latticeHeaderCell');
-        const hi2 = document.createElement('input');
-        hi2.type = 'text'; hi2.inputMode = 'numeric'; hi2.maxLength = 1; hi2.autocomplete = 'off';
-        hi2.id = 'lat-headB' + r;
-        hc2.appendChild(hi2);
-        grid.appendChild(hc2);
-      } else {
-        grid.appendChild(el('div', 'latticeHeaderCell solved', String(B_DIGITS[r])));
-      }
       for (let c2 = 0; c2 < nA; c2++){
         const cellData = cells[r][c2];
         const isActive = opts.activeRC && opts.activeRC[0] === r && opts.activeRC[1] === c2;
@@ -4195,6 +4367,18 @@ function render(){
         }
         grid.appendChild(cellDiv);
       }
+      let hc2;
+      if (opts.headerInputs){
+        hc2 = el('div', 'latticeHeaderCell');
+        const hi2 = document.createElement('input');
+        hi2.type = 'text'; hi2.inputMode = 'numeric'; hi2.maxLength = 1; hi2.autocomplete = 'off';
+        hi2.id = 'lat-headB' + r;
+        hc2.appendChild(hi2);
+      } else {
+        hc2 = el('div', 'latticeHeaderCell solved', String(B_DIGITS[r]));
+      }
+      if (bDecPlaces > 0 && r === bSplit - 1) hc2.appendChild(el('span', 'latticeDecimalDotRow', '.'));
+      grid.appendChild(hc2);
     }
     return grid;
   }
@@ -4203,21 +4387,27 @@ function render(){
     const host = document.getElementById('lat-mainHost');
     const stageLbl = document.getElementById('lat-stageLabel');
     const promptEl = document.getElementById('lat-promptText');
+    const totalSteps = totalDecPlaces() > 0 ? 4 : 3;
     stageLbl.textContent =
-      stage === 'headers' ? 'Step 1 of 3: fill in the grid' :
-      stage === 'cells' ? 'Step 2 of 3: multiply cell by cell' :
-      stage === 'diagonals' ? 'Step 3 of 3: add along the diagonals' : 'Finished';
+      stage === 'headers' ? `Step 1 of ${totalSteps}: fill in the grid` :
+      stage === 'cells' ? `Step 2 of ${totalSteps}: multiply cell by cell` :
+      stage === 'diagonals' ? `Step 3 of ${totalSteps}: add along the diagonals` :
+      stage === 'decimalPlace' ? `Step 4 of ${totalSteps}: place the decimal point` : 'Finished';
     promptEl.textContent = '';
     host.innerHTML = '';
     if (stage === 'headers') renderHeaders(host);
     else if (stage === 'cells') renderCells(host);
     else if (stage === 'diagonals') renderDiagonals(host);
+    else if (stage === 'decimalPlace') renderDecimalPlace(host);
     else renderFinished(host);
   }
 
   function renderHeaders(host){
-    host.appendChild(el('p', 'prompt',
-      `Type each digit of ${A_DIGITS.join('')} along the top, and each digit of ${B_DIGITS.join('')} down the side.`));
+    let promptText = `Type each digit of ${formatNum(A_DIGITS, aDecPlaces)} along the top, and each digit of ${formatNum(B_DIGITS, bDecPlaces)} down the right-hand side.`;
+    if (aDecPlaces > 0 || bDecPlaces > 0){
+      promptText += ' The decimal points are already marked for you — just type the digits, in order, ignoring the point.';
+    }
+    host.appendChild(el('p', 'prompt', promptText));
     host.appendChild(buildGrid({ headerInputs: true }));
 
     const checkRow = el('div', 'checkRow');
@@ -4282,39 +4472,67 @@ function render(){
     };
 
     const checkRow = el('div', 'checkRow');
-    const tensLabel = el('span', null, 'Tens:');
-    const tensAns = document.createElement('input');
-    tensAns.type = 'text'; tensAns.inputMode = 'numeric'; tensAns.maxLength = 1; tensAns.className = 'blankInput'; tensAns.id = 'lat-tensAnswer'; tensAns.style.width = '44px';
-    const unitsLabel = el('span', null, 'Units:');
-    const unitsAns = document.createElement('input');
-    unitsAns.type = 'text'; unitsAns.inputMode = 'numeric'; unitsAns.maxLength = 1; unitsAns.className = 'blankInput'; unitsAns.id = 'lat-unitsAnswer'; unitsAns.style.width = '44px';
     const checkBtn = el('button', 'btn', 'Check');
-    checkRow.appendChild(tensLabel); checkRow.appendChild(tensAns);
-    checkRow.appendChild(unitsLabel); checkRow.appendChild(unitsAns);
     checkRow.appendChild(checkBtn);
     host.appendChild(checkRow);
     const fb = el('div', 'checkFeedback');
     host.appendChild(fb);
 
+    const fallbackHost = el('div', 'answerRow');
+    host.appendChild(fallbackHost);
+    let tensAns = null, unitsAns = null;
+
+    function showFallback(){
+      if (tensAns) return;
+      fallbackHost.appendChild(el('span', null, 'Tens:'));
+      tensAns = document.createElement('input');
+      tensAns.type = 'text'; tensAns.inputMode = 'numeric'; tensAns.maxLength = 1; tensAns.className = 'blankInput'; tensAns.id = 'lat-tensAnswer'; tensAns.style.width = '44px';
+      fallbackHost.appendChild(tensAns);
+      fallbackHost.appendChild(el('span', null, 'Units:'));
+      unitsAns = document.createElement('input');
+      unitsAns.type = 'text'; unitsAns.inputMode = 'numeric'; unitsAns.maxLength = 1; unitsAns.className = 'blankInput'; unitsAns.id = 'lat-unitsAnswer'; unitsAns.style.width = '44px';
+      fallbackHost.appendChild(unitsAns);
+      tensAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+      unitsAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+      setTimeout(() => unitsAns.focus(), 30);
+    }
+    if (cellAttemptFailed) showFallback();
+
+    const gridTensInp = document.getElementById('lat-tensInput');
+    const gridUnitsInp = document.getElementById('lat-unitsInput');
+
     function doCheck(){
-      const tv = tensAns.value.trim() === '' ? 0 : parseInt(tensAns.value, 10);
-      const uv = parseInt(unitsAns.value, 10);
+      let tv, uv;
+      if (unitsAns){
+        tv = tensAns.value.trim() === '' ? 0 : parseInt(tensAns.value, 10);
+        uv = parseInt(unitsAns.value, 10);
+      } else {
+        tv = gridTensInp.value.trim() === '' ? 0 : parseInt(gridTensInp.value, 10);
+        uv = parseInt(gridUnitsInp.value, 10);
+      }
       if (isNaN(uv)){ fb.textContent = 'Type at least the units digit.'; fb.className = 'checkFeedback bad'; return; }
       if (tv === cellData.tens && uv === cellData.units){
         fb.textContent = '✓ Correct!'; fb.className = 'checkFeedback good';
         cellData.solved = true;
         cellPos++;
-        tensAns.disabled = true; unitsAns.disabled = true; checkBtn.disabled = true;
+        cellAttemptFailed = false;
+        gridTensInp.disabled = true; gridUnitsInp.disabled = true; checkBtn.disabled = true;
+        if (tensAns) tensAns.disabled = true;
+        if (unitsAns) unitsAns.disabled = true;
         setTimeout(render, 350);
       } else {
-        fb.textContent = `✗ Not quite — check ${cellData.top} × ${cellData.side} and try again.`; fb.className = 'checkFeedback bad';
+        cellAttemptFailed = true;
+        fb.textContent = `✗ Not quite — check ${cellData.top} × ${cellData.side} and try again. Use the boxes below to help place each digit.`;
+        fb.className = 'checkFeedback bad';
+        gridTensInp.value = ''; gridUnitsInp.value = '';
+        showFallback();
         tensAns.value = ''; unitsAns.value = ''; unitsAns.focus();
       }
     }
     checkBtn.onclick = doCheck;
-    unitsAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
-    tensAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
-    setTimeout(() => unitsAns.focus(), 30);
+    if (gridUnitsInp) gridUnitsInp.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    if (gridTensInp) gridTensInp.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    setTimeout(() => { if (!cellAttemptFailed && gridUnitsInp) gridUnitsInp.focus(); }, 30);
   }
 
   function renderDiagonals(host){
@@ -4329,7 +4547,7 @@ function render(){
     renderBandStrip(bandHost);
 
     if (!act){
-      setTimeout(() => { stage = 'finished'; render(); }, 700);
+      setTimeout(() => { stage = totalDecPlaces() > 0 ? 'decimalPlace' : 'finished'; render(); }, 700);
       return;
     }
 
@@ -4388,12 +4606,18 @@ function render(){
     setTimeout(() => answerInput.focus(), 30);
   }
 
-  function renderBandStrip(bandHost){
+  function renderBandStrip(bandHost, opts){
+    opts = opts || {};
+    const markDecimal = opts.markDecimal || 0;
     bandHost.innerHTML = '';
     const n = bands.length;
     const carryRow = el('div', 'latticeDccRow');
     const ansRow = el('div', 'latticeDccRow');
     for (let i = n - 1; i >= 0; i--){
+      if (markDecimal > 0 && i === markDecimal - 1){
+        carryRow.appendChild(el('div', 'latticeDecimalMarker carry'));
+        ansRow.appendChild(el('div', 'latticeDecimalMarker ans', '.'));
+      }
       const band = bands[i];
       const solvedHere = i < bandPos;
       const isActive = i === bandPos;
@@ -4423,16 +4647,115 @@ function render(){
     }
   }
 
+  function drawDecimalArrows(grid, svg){
+    const gw = grid.offsetWidth, gh = grid.offsetHeight;
+    if (!gw || !gh) return;
+    const W = gw / (nA + 1), H = gh / (nB + 1);
+    svg.setAttribute('width', gw);
+    svg.setAttribute('height', gh);
+    svg.setAttribute('viewBox', `0 0 ${gw} ${gh}`);
+    const svgNS = 'http://www.w3.org/2000/svg';
+    svg.innerHTML = '';
+
+    const defs = document.createElementNS(svgNS, 'defs');
+    defs.innerHTML = `
+      <marker id="latArrowDeep" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="var(--mark-deep)"></path>
+      </marker>
+      <marker id="latArrowExchange" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 z" fill="var(--exchange)"></path>
+      </marker>`;
+    svg.appendChild(defs);
+
+    function drawLine(x1, y1, x2, y2, color, marker){
+      if (Math.hypot(x2 - x1, y2 - y1) < 1) return;
+      const line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', 3);
+      line.setAttribute('marker-end', `url(#${marker})`);
+      svg.appendChild(line);
+    }
+
+    const Xsplit = (nA - aDecPlaces) * W;
+    const Ysplit = (1 + nB - bDecPlaces) * H;
+    const bottomY = (nB + 1) * H;
+    const rightX = (nA + 1) * W;
+
+    if (aDecPlaces > 0) drawLine(Xsplit, 2, Xsplit, Ysplit, 'var(--mark-deep)', 'latArrowDeep');
+    if (bDecPlaces > 0) drawLine(rightX - 2, Ysplit, Xsplit, Ysplit, 'var(--mark-deep)', 'latArrowDeep');
+
+    const distToBottom = bottomY - Ysplit;
+    const distToLeft = Xsplit;
+    const steps = Math.min(distToBottom, distToLeft);
+    const endX = Xsplit - steps, endY = Ysplit + steps;
+    drawLine(Xsplit, Ysplit, endX, endY, 'var(--exchange)', 'latArrowExchange');
+  }
+
+  function renderDecimalPlace(host){
+    const totalDec = totalDecPlaces();
+    const aVal = formatNum(A_DIGITS, aDecPlaces), bVal = formatNum(B_DIGITS, bDecPlaces);
+    host.appendChild(el('p', 'prompt', 'Every diagonal is added. Now work out where the decimal point goes in the answer.'));
+    host.appendChild(el('div', 'quotHint',
+      `Follow the arrows: straight down from the decimal point in ${aVal}, straight across from the decimal point in ${bVal}, then diagonally down to the total — that tells you how many digits come after the point.`));
+
+    const gridWrap = el('div', 'latticeGridWrap');
+    const grid = buildGrid({});
+    gridWrap.appendChild(grid);
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'latticeDecimalSvg');
+    gridWrap.appendChild(svg);
+    host.appendChild(gridWrap);
+    requestAnimationFrame(() => drawDecimalArrows(grid, svg));
+
+    const bandHost = el('div', 'latticeBandHost');
+    host.appendChild(bandHost);
+    renderBandStrip(bandHost, { markDecimal: totalDec });
+
+    const checkRow = el('div', 'checkRow');
+    const answerInput = document.createElement('input');
+    answerInput.type = 'text'; answerInput.inputMode = 'decimal'; answerInput.className = 'blankInput'; answerInput.id = 'lat-decimalAnswerInput'; answerInput.style.width = '120px';
+    answerInput.placeholder = `${aVal} × ${bVal}`;
+    const checkBtn = el('button', 'btn', 'Check');
+    checkRow.appendChild(answerInput); checkRow.appendChild(checkBtn);
+    host.appendChild(checkRow);
+    const fb = el('div', 'checkFeedback');
+    host.appendChild(fb);
+
+    const correct = finalAnswerDecimalStr();
+
+    function doCheck(){
+      const val = answerInput.value.trim();
+      if (!val){ fb.textContent = 'Type the final answer, including the decimal point.'; fb.className = 'checkFeedback bad'; return; }
+      if (val === correct){
+        fb.textContent = '✓ Correct!'; fb.className = 'checkFeedback good';
+        answerInput.disabled = true; checkBtn.disabled = true;
+        setTimeout(() => { stage = 'finished'; render(); }, 450);
+      } else {
+        fb.textContent = `✗ Not quite — count the digits after the point using the arrows above (${totalDec} decimal place${totalDec === 1 ? '' : 's'} in total) and try again.`;
+        fb.className = 'checkFeedback bad';
+        answerInput.value = ''; answerInput.focus();
+      }
+    }
+    checkBtn.onclick = doCheck;
+    answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    setTimeout(() => answerInput.focus(), 30);
+  }
+
   function renderFinished(host){
-    const aVal = A_DIGITS.join(''), bVal = B_DIGITS.join('');
+    const aVal = formatNum(A_DIGITS, aDecPlaces), bVal = formatNum(B_DIGITS, bDecPlaces);
+    const totalDec = totalDecPlaces();
     host.appendChild(buildGrid({}));
     const bandHost = el('div', 'latticeBandHost');
     host.appendChild(bandHost);
-    renderBandStrip(bandHost);
+    renderBandStrip(bandHost, { markDecimal: totalDec });
     const box = el('div', 'finishBox');
     box.appendChild(el('div', 'headline', 'Finished!'));
     const p = document.createElement('p');
-    p.innerHTML = `${aVal} × ${bVal} = <span class="ans">${finalAnswerStr()}</span>`;
+    const answer = totalDec > 0 ? finalAnswerDecimalStr() : finalAnswerStr();
+    p.innerHTML = `${aVal} × ${bVal} = <span class="ans">${answer}</span>`;
     box.appendChild(p);
     host.appendChild(box);
   }
@@ -4446,17 +4769,26 @@ function render(){
 
   document.getElementById('lat-startBtn').addEventListener('click', () => {
     const mode = activePill(modePills, 'mode');
+    const feedback = document.getElementById('lat-customFeedback');
     let aStr, bStr;
     if (mode === 'custom'){
       aStr = document.getElementById('lat-aInput').value.trim();
       bStr = document.getElementById('lat-bInput').value.trim();
+      if (!parseNumberStr(aStr) || !parseNumberStr(bStr)){
+        if (feedback){ feedback.textContent = 'Enter two numbers using digits 0-9 and an optional decimal point (e.g. 23.6).'; feedback.className = 'checkFeedback bad'; }
+        return;
+      }
+      if (feedback){ feedback.textContent = ''; feedback.className = 'checkFeedback'; }
     } else {
       const aDigits = parseInt(activePill(document.getElementById('lat-aDigitsPills'), 'digits'), 10);
       const bDigits = parseInt(activePill(document.getElementById('lat-bDigitsPills'), 'digits'), 10);
-      aStr = randomDigits(aDigits);
-      bStr = randomDigits(bDigits);
+      const aDec = parseInt(activePill(document.getElementById('lat-aDecimalPills'), 'decimals'), 10) || 0;
+      const bDec = parseInt(activePill(document.getElementById('lat-bDecimalPills'), 'decimals'), 10) || 0;
+      const aDecDigits = randomDecimalDigits(aDec);
+      const bDecDigits = randomDecimalDigits(bDec);
+      aStr = randomDigits(aDigits) + (aDecDigits ? '.' + aDecDigits : '');
+      bStr = randomDigits(bDigits) + (bDecDigits ? '.' + bDecDigits : '');
     }
-    if (!/^[0-9]+$/.test(aStr) || !/^[0-9]+$/.test(bStr)) return;
     start(aStr, bStr);
   });
   document.getElementById('lat-resetBtn').addEventListener('click', () => {
