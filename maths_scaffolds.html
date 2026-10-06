@@ -713,10 +713,11 @@
   .backBtn:hover{ color: var(--mark-deep); }
 
   /* ---- lattice multiplication ---- */
+  #lat-app{ --latW:54px; }
   .latticeGrid{ display:inline-grid; margin: 18px 0; }
-  .latticeCornerCell{ width:54px; height:54px; }
+  .latticeCornerCell{ width:var(--latW); height:var(--latW); }
   .latticeHeaderCell{
-    position:relative; width:54px; height:54px; display:flex; align-items:center; justify-content:center;
+    position:relative; width:var(--latW); height:var(--latW); display:flex; align-items:center; justify-content:center;
     font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:22px;
     border:2px solid var(--ink); background:#fff;
   }
@@ -731,9 +732,21 @@
   }
   .latticeGridWrap{ position:relative; display:inline-block; }
   .latticeDecimalSvg{ position:absolute; top:0; left:0; pointer-events:none; overflow:visible; }
-  .latticeDecimalMarker{ flex:0 0 14px; width:14px; text-align:center; font-family:'IBM Plex Mono', monospace; font-weight:700; }
-  .latticeDecimalMarker.carry{ height:22px; line-height:22px; }
-  .latticeDecimalMarker.ans{ height:32px; line-height:32px; font-size:26px; color: var(--mark-deep); }
+  .latticeDecimalMarker{ flex:0 0 0; width:0; position:relative; }
+  .latticeDecimalMarker.carry{ height:22px; }
+  .latticeDecimalMarker.ans{ height:32px; }
+  .latticeDecimalMarker.ans span{ position:absolute; left:-7px; bottom:-2px; font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:30px; line-height:1; color: var(--mark-deep); }
+  .latticeGridBlock{ display:flow-root; }
+  .latticeGridBlock .latticeGrid{ display:grid; width:max-content; margin:18px 0 4px; }
+  .latticeGridBlock .latticeGridWrap{ display:block; width:max-content; }
+  .latticeTri{ position:absolute; inset:0; pointer-events:none; background: rgba(217,166,44,.38); }
+  .latticeTri.tens{ clip-path: polygon(0 0, 100% 0, 0 100%); }
+  .latticeTri.units{ clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+  .latticeAnswerInput{
+    width:calc(var(--latW) - 10px); height:32px; box-sizing:border-box; text-align:center;
+    font-family:'IBM Plex Mono', monospace; font-size:26px; font-weight:700; color: var(--ink);
+    border:none; border-bottom:3px solid var(--mark-deep); background:transparent; outline:none; padding:0;
+  }
   .latticeHeaderCell input{
     width:32px; text-align:center; font-family:'IBM Plex Mono', monospace; font-weight:700; font-size:20px;
     border:1.5px solid var(--line); border-radius:6px; padding:4px 2px; outline:none; background:#fff; color:var(--ink);
@@ -742,7 +755,7 @@
   .latticeHeaderCell input.correct{ border-color: var(--good); color: var(--good); }
   .latticeHeaderCell input.wrong{ border-color: var(--bad); color: var(--bad); }
   .latticeCell{
-    position:relative; width:54px; height:54px; border:1px solid var(--ink); background:#fff;
+    position:relative; width:var(--latW); height:var(--latW); border:1px solid var(--ink); background:#fff;
     background-image: linear-gradient(135deg, transparent calc(50% - 1px), var(--line) calc(50% - 1px), var(--line) calc(50% + 1px), transparent calc(50% + 1px));
   }
   .latticeCell.active{ background-color:#fdf6e3; }
@@ -758,10 +771,10 @@
   .latticeTensInput{ top:2px; left:3px; }
   .latticeUnitsInput{ bottom:2px; right:3px; }
   .latticeTensInput:focus, .latticeUnitsInput:focus{ border-color: var(--mark-deep); }
-  .latticeBandHost{ margin: 10px 0 16px; }
-  .latticeDccRow{ display:flex; align-items:flex-end; gap:2px; }
+  .latticeBandHost{ margin: 4px 0 16px; }
+  .latticeDccRow{ display:flex; align-items:flex-end; gap:0; }
   .latticeCarryCell{
-    width:38px; flex:0 0 38px; font-family:'IBM Plex Mono', monospace;
+    width:var(--latW); flex:0 0 var(--latW); font-family:'IBM Plex Mono', monospace;
     font-size:16px; font-weight:700; text-align:center; height:22px; line-height:22px;
     color: var(--exchange);
   }
@@ -772,7 +785,7 @@
   }
   .latticeCarryInput:focus{ border-color: var(--mark-deep); }
   .latticeAnswerCell{
-    width:38px; flex:0 0 38px; font-family:'IBM Plex Mono', monospace;
+    width:var(--latW); flex:0 0 var(--latW); font-family:'IBM Plex Mono', monospace;
     font-size:26px; font-weight:700; text-align:center; height:32px; line-height:32px;
     color: var(--good);
   }
@@ -780,7 +793,7 @@
   .latticeAnswerCell.active{ background:#fdf6e3; border-radius:6px; color: var(--ink); border-bottom: 3px solid var(--mark-deep); }
 
   @media (max-width:480px){
-    .latticeCornerCell, .latticeHeaderCell, .latticeCell{ width:42px; height:42px; }
+    #lat-app{ --latW:42px; }
     .latticeHeaderCell{ font-size:18px; }
     .latticeHeaderCell input{ width:26px; font-size:16px; }
   }
@@ -4325,8 +4338,8 @@ function render(){
   function buildGrid(opts){
     opts = opts || {};
     const grid = el('div', 'latticeGrid');
-    grid.style.gridTemplateColumns = `repeat(${nA + 1}, 54px)`;
-    grid.style.gridTemplateRows = `repeat(${nB + 1}, 54px)`;
+    grid.style.gridTemplateColumns = `repeat(${nA + 1}, var(--latW))`;
+    grid.style.gridTemplateRows = `repeat(${nB + 1}, var(--latW))`;
     const aSplit = nA - aDecPlaces; // column index where A's decimal digits begin
     const bSplit = nB - bDecPlaces; // row index where B's decimal digits begin
 
@@ -4351,6 +4364,11 @@ function render(){
         const cellData = cells[r][c2];
         const isActive = opts.activeRC && opts.activeRC[0] === r && opts.activeRC[1] === c2;
         const cellDiv = el('div', 'latticeCell' + (isActive ? ' active' : ''));
+        if (opts.activeBand !== undefined){
+          const ub = (nB - 1 - r) + (nA - 1 - c2);
+          if (ub === opts.activeBand) cellDiv.appendChild(el('div', 'latticeTri units'));
+          if (ub + 1 === opts.activeBand) cellDiv.appendChild(el('div', 'latticeTri tens'));
+        }
         if (opts.headerInputs){
           // blank placeholder — nothing filled in yet at this stage
         } else if (cellData.solved){
@@ -4535,15 +4553,25 @@ function render(){
     setTimeout(() => { if (!cellAttemptFailed && gridUnitsInp) gridUnitsInp.focus(); }, 30);
   }
 
+  function gridBlock(inner){
+    const blk = el('div', 'latticeGridBlock');
+    const pad = Math.max(0, bands.length - nA);
+    blk.style.paddingLeft = `calc(var(--latW) * ${pad})`;
+    blk.appendChild(inner);
+    return blk;
+  }
+
   function renderDiagonals(host){
     host.appendChild(el('p', 'prompt', 'Every cell is multiplied out. Now add down each diagonal strip, starting from the right.'));
-    host.appendChild(buildGrid({}));
 
     const n = bands.length;
     const act = bandPos < n ? bands[bandPos] : null;
 
+    const sumWrap = el('div', 'latticeSumWrap');
+    sumWrap.appendChild(gridBlock(buildGrid({ activeBand: act ? act.index : undefined })));
     const bandHost = el('div', 'latticeBandHost');
-    host.appendChild(bandHost);
+    sumWrap.appendChild(bandHost);
+    host.appendChild(sumWrap);
     renderBandStrip(bandHost);
 
     if (!act){
@@ -4551,24 +4579,21 @@ function render(){
       return;
     }
 
-    const exprParts = act.contributors.slice();
-    let exprStr = exprParts.length ? exprParts.join(' + ') : '0';
-    if (act.carryIn) exprStr += (exprParts.length ? ' + ' : '') + act.carryIn + ' carried in';
-    host.appendChild(el('p', 'stagePrompt', `Add this diagonal: ${exprStr}.`));
+    host.appendChild(el('p', 'stagePrompt', 'Add up the highlighted diagonal, including any carried number.'));
     if (bandPos < n - 1){
-      host.appendChild(el('div', 'quotHint', 'Type the digit below the line. If the total is 10 or more, write the carried ten in the small box above the next diagonal too — then check them together.'));
+      host.appendChild(el('div', 'quotHint', 'Type the digit in the box below the line. If the total is 10 or more, write the carried ten in the small box above the next diagonal too — then press Check.'));
     } else {
-      host.appendChild(el('div', 'quotHint', 'This is the last diagonal — just type the digit below the line.'));
+      host.appendChild(el('div', 'quotHint', 'This is the last diagonal — just type the digit in the box below the line.'));
     }
 
     const checkRow = el('div', 'checkRow');
-    const answerInput = document.createElement('input');
-    answerInput.type = 'text'; answerInput.inputMode = 'numeric'; answerInput.className = 'blankInput'; answerInput.id = 'lat-bandAnswerInput'; answerInput.style.width = '60px';
     const checkBtn = el('button', 'btn', 'Check');
-    checkRow.appendChild(answerInput); checkRow.appendChild(checkBtn);
+    checkRow.appendChild(checkBtn);
     host.appendChild(checkRow);
     const fb = el('div', 'checkFeedback');
     host.appendChild(fb);
+
+    const answerInput = document.getElementById('lat-bandAnswerInput');
 
     function doCheck(){
       const val = parseInt(answerInput.value, 10);
@@ -4584,11 +4609,11 @@ function render(){
         fb.textContent = '✓ Correct!'; fb.className = 'checkFeedback good';
         bandPos++;
         answerInput.disabled = true; checkBtn.disabled = true;
+        if (carryEl) carryEl.disabled = true;
         setTimeout(render, 350);
         return;
       }
-      const rawSum = exprParts.reduce((s, v) => s + v, 0) + act.carryIn;
-      if (!answerOk && act.carryOut === 1 && val === rawSum){
+      if (!answerOk && act.carryOut === 1 && val === act.sum){
         fb.textContent = "That's the full total for this diagonal. Write just the last digit here, and carry the other digit into the box above the next diagonal.";
       } else if (!answerOk){
         fb.textContent = '✗ Not quite — check the digit and try again.';
@@ -4602,7 +4627,9 @@ function render(){
       if (!carryOk && carryEl){ carryEl.value = ''; if (answerOk) carryEl.focus(); }
     }
     checkBtn.onclick = doCheck;
-    answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    [answerInput, document.getElementById('lat-carryInput' + (bandPos + 1))].forEach(inp => {
+      if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    });
     setTimeout(() => answerInput.focus(), 30);
   }
 
@@ -4616,35 +4643,39 @@ function render(){
     for (let i = n - 1; i >= 0; i--){
       if (markDecimal > 0 && i === markDecimal - 1){
         carryRow.appendChild(el('div', 'latticeDecimalMarker carry'));
-        ansRow.appendChild(el('div', 'latticeDecimalMarker ans', '.'));
+        const mk = el('div', 'latticeDecimalMarker ans');
+        mk.appendChild(el('span', null, '.'));
+        ansRow.appendChild(mk);
       }
       const band = bands[i];
-      const solvedHere = i < bandPos;
       const isActive = i === bandPos;
-      if (i === 0){
+      if (i === 0 || i > bandPos + 1){
         carryRow.appendChild(el('div', 'latticeCarryCell'));
-      } else if (solvedHere){
+      } else if (i <= bandPos){
         carryRow.appendChild(el('div', 'latticeCarryCell', band.carryIn ? '+' + band.carryIn : ''));
       } else {
         const wrap = el('div', 'latticeCarryCell');
         const inp = document.createElement('input');
         inp.type = 'text'; inp.inputMode = 'numeric'; inp.maxLength = 1; inp.autocomplete = 'off';
         inp.className = 'latticeCarryInput'; inp.id = 'lat-carryInput' + i;
+        inp.addEventListener('input', () => { inp.value = inp.value.replace(/[^0-9]/g, '').slice(0, 1); });
         wrap.appendChild(inp);
         carryRow.appendChild(wrap);
       }
-      if (solvedHere) ansRow.appendChild(el('div', 'latticeAnswerCell', String(band.digit)));
-      else if (isActive) ansRow.appendChild(el('div', 'latticeAnswerCell placeholder active', '?'));
+      if (i < bandPos) ansRow.appendChild(el('div', 'latticeAnswerCell', String(band.digit)));
+      else if (isActive){
+        const cell = el('div', 'latticeAnswerCell');
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.inputMode = 'numeric'; inp.maxLength = 2; inp.autocomplete = 'off';
+        inp.className = 'latticeAnswerInput'; inp.id = 'lat-bandAnswerInput';
+        inp.addEventListener('input', () => { inp.value = inp.value.replace(/[^0-9]/g, '').slice(0, 2); });
+        cell.appendChild(inp);
+        ansRow.appendChild(cell);
+      }
       else ansRow.appendChild(el('div', 'latticeAnswerCell placeholder', ''));
     }
     bandHost.appendChild(carryRow);
     bandHost.appendChild(ansRow);
-    if (bandPos > 0){
-      bandHost.querySelectorAll('.latticeCarryInput').forEach(inp => {
-        inp.addEventListener('input', () => { inp.value = inp.value.replace(/[^0-9]/g, '').slice(0, 1); });
-        inp.addEventListener('keydown', e => { if (e.key === 'Enter'){ const b = document.querySelector('#lat-mainHost .checkRow .btn'); if (b) b.click(); } });
-      });
-    }
   }
 
   function drawDecimalArrows(grid, svg){
@@ -4707,16 +4738,17 @@ function render(){
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('class', 'latticeDecimalSvg');
     gridWrap.appendChild(svg);
-    host.appendChild(gridWrap);
-    requestAnimationFrame(() => drawDecimalArrows(grid, svg));
-
+    const sumWrap = el('div', 'latticeSumWrap');
+    sumWrap.appendChild(gridBlock(gridWrap));
     const bandHost = el('div', 'latticeBandHost');
-    host.appendChild(bandHost);
+    sumWrap.appendChild(bandHost);
+    host.appendChild(sumWrap);
+    requestAnimationFrame(() => drawDecimalArrows(grid, svg));
     renderBandStrip(bandHost, { markDecimal: totalDec });
 
     const checkRow = el('div', 'checkRow');
     const answerInput = document.createElement('input');
-    answerInput.type = 'text'; answerInput.inputMode = 'decimal'; answerInput.className = 'blankInput'; answerInput.id = 'lat-decimalAnswerInput'; answerInput.style.width = '120px';
+    answerInput.type = 'text'; answerInput.inputMode = 'decimal'; answerInput.className = 'blankInput'; answerInput.id = 'lat-decimalAnswerInput'; answerInput.style.width = '170px';
     answerInput.placeholder = `${aVal} × ${bVal}`;
     const checkBtn = el('button', 'btn', 'Check');
     checkRow.appendChild(answerInput); checkRow.appendChild(checkBtn);
@@ -4747,9 +4779,11 @@ function render(){
   function renderFinished(host){
     const aVal = formatNum(A_DIGITS, aDecPlaces), bVal = formatNum(B_DIGITS, bDecPlaces);
     const totalDec = totalDecPlaces();
-    host.appendChild(buildGrid({}));
+    const sumWrap = el('div', 'latticeSumWrap');
+    sumWrap.appendChild(gridBlock(buildGrid({})));
     const bandHost = el('div', 'latticeBandHost');
-    host.appendChild(bandHost);
+    sumWrap.appendChild(bandHost);
+    host.appendChild(sumWrap);
     renderBandStrip(bandHost, { markDecimal: totalDec });
     const box = el('div', 'finishBox');
     box.appendChild(el('div', 'headline', 'Finished!'));
