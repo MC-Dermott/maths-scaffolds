@@ -1665,6 +1665,10 @@ function renderStage(){
     blankInput.addEventListener('keydown', (evt) => {
       if (evt.key === 'Enter') doCheck();
     });
+    blankInput.addEventListener('input', () => {
+      const v = parseFloat(blankInput.value);
+      if (!blankInput.disabled && !isNaN(v) && Math.abs(v - r.rounded) < 1e-9) doCheck();
+    });
 
     if (checked && isCorrect){
       const dirClass = r.goesUp ? 'up' : 'down';
@@ -1926,6 +1930,7 @@ function render(){
     const quotInput = document.getElementById('bs-quotInput');
     if (quotInput){
       quotInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheck(); });
+      quotInput.addEventListener('input', () => autoMatch(quotInput));
       setTimeout(() => quotInput.focus(), 30);
     }
   } else {
@@ -1936,6 +1941,7 @@ function render(){
       const exchangeInput = document.getElementById('bs-exchangeInput');
       if (exchangeInput){
         exchangeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheck(); });
+        exchangeInput.addEventListener('input', () => autoMatch(exchangeInput));
         setTimeout(() => exchangeInput.focus(), 30);
       }
     } else {
@@ -1962,6 +1968,14 @@ function activeColumnIndex(){
 /* ---------- interaction ---------- */
 document.getElementById('bs-checkBtn').addEventListener('click', handleCheckClick);
 document.getElementById('bs-answerInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheck(); });
+
+function autoMatch(input){
+  if (composeMode || finished) return;
+  const step = result.steps[stepIndex];
+  const expected = substage === 'quotient' ? step.quotient : step.remainder;
+  if (parseInt(input.value, 10) === expected) doCheck();
+}
+document.getElementById('bs-answerInput').addEventListener('input', (e) => autoMatch(e.target));
 
 function handleCheckClick(){
   if (composeMode){
@@ -2423,6 +2437,15 @@ function attachGridHandlers(){
       });
       fromInput.addEventListener('keydown', e => { if (e.key === 'Enter') toInput.focus(); });
       toInput.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+      const exAuto = () => {
+        const i = exchangePending.from;
+        const fromOk = parseInt(fromInput.value, 10) === effectiveTop[i] - 1;
+        const toOk = parseInt(toInput.value, 10) === effectiveTop[i + 1] + 10;
+        if (fromOk && toOk) doCheck();
+        else if (fromOk && toInput.value === '') toInput.focus();
+      };
+      fromInput.addEventListener('input', exAuto);
+      toInput.addEventListener('input', exAuto);
       setTimeout(() => fromInput.focus(), 30);
     }
   }
@@ -2771,6 +2794,10 @@ function render(){
         answerInput.value = answerInput.value.replace(/[^0-9]/g, '').slice(0, maxLen);
       });
       answerInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheck(); });
+      answerInput.addEventListener('input', () => {
+        const have = effectiveTop[activeCol], need = bottomDigits[activeCol];
+        if (have >= need && parseInt(answerInput.value, 10) === have - need) doCheck();
+      });
       setTimeout(() => answerInput.focus(), 30);
     }
     return;
@@ -3013,6 +3040,7 @@ function attachGridHandlers(){
           el.value = el.value.replace(/[^0-9]/g, '').slice(0, 1);
         });
         el.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheck(); });
+        el.addEventListener('input', autoCheckSolving);
       });
     }
     return;
@@ -3085,6 +3113,23 @@ function finalizeNumbers(){
 }
 
 /* ---------- solving ---------- */
+function autoCheckSolving(){
+  if (colState !== 'solving') return;
+  const i = activeCol;
+  const answerInput = document.getElementById('ca-answerInput');
+  if (!answerInput) return;
+  const val = parseInt(answerInput.value, 10);
+  if (isNaN(val)) return;
+  const sum = topDigits[i] + bottomDigits[i] + (carryDigits[i] || 0);
+  const carryOut = Math.floor(sum / 10);
+  if (val !== sum % 10) return;
+  const carryInput = i === 0 ? document.getElementById('ca-finalCarryInput') : document.getElementById(`ca-carryInput${i - 1}`);
+  const rawCarry = carryInput ? carryInput.value.trim() : '';
+  const carryVal = rawCarry === '' ? 0 : parseInt(rawCarry, 10);
+  if (carryVal === carryOut) doCheck();
+  else if (carryOut > 0 && carryInput && rawCarry === '') carryInput.focus();
+}
+
 function doCheck(){
   if (colState !== 'solving') return;
   const checkFeedback = document.getElementById('ca-checkFeedback');
@@ -3656,6 +3701,12 @@ function render(){
       answerInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') (subStep === 'whole' ? doCheckWhole() : doCheckMissingLen());
       });
+      answerInput.addEventListener('input', () => {
+        const bd2 = breakdownFor(missingQueue[missingStepIdx]);
+        const v = parseInt(answerInput.value, 10);
+        if (subStep === 'whole' && v === bd2.whole) doCheckWhole();
+        else if (subStep !== 'whole' && v === bd2.missing) doCheckMissingLen();
+      });
       setTimeout(() => answerInput.focus(), 30);
     }
 
@@ -3680,6 +3731,9 @@ function render(){
     const perimeterInput = document.getElementById('ls-perimeterInput');
     if (perimeterInput){
       perimeterInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheckPerimeter(); });
+      perimeterInput.addEventListener('input', () => {
+        if (parseInt(perimeterInput.value, 10) === shape.edgeLengths.reduce((a, b) => a + b, 0)) doCheckPerimeter();
+      });
       setTimeout(() => perimeterInput.focus(), 30);
     }
     checkRow.style.display = 'flex';
@@ -3811,6 +3865,16 @@ function doCheckAsk(userSaysChanges){
   }
 }
 
+function convertAnswerOk(raw){
+  raw = raw.trim();
+  if (tcDirection === '12to24'){
+    const m = raw.match(/^(\d{1,2}):?(\d{2})$/);
+    return !!m && parseInt(m[1], 10) === tcComputed.hour24 && parseInt(m[2], 10) === tcTime.minute;
+  }
+  const m = raw.toLowerCase().replace(/\s+/g, ' ').match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
+  return !!m && parseInt(m[1], 10) === tcComputed.hour12 && parseInt(m[2], 10) === tcTime.minute && m[3] === tcComputed.period;
+}
+
 function doCheckConvert(){
   const checkFeedback = document.getElementById('tc-checkFeedback');
   const input = document.getElementById('tc-answerInput');
@@ -3822,14 +3886,7 @@ function doCheckConvert(){
     return;
   }
 
-  let ok = false;
-  if (tcDirection === '12to24'){
-    const m = raw.match(/^(\d{1,2}):?(\d{2})$/);
-    if (m) ok = parseInt(m[1], 10) === tcComputed.hour24 && parseInt(m[2], 10) === tcTime.minute;
-  } else {
-    const m = raw.toLowerCase().replace(/\s+/g, ' ').match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
-    if (m) ok = parseInt(m[1], 10) === tcComputed.hour12 && parseInt(m[2], 10) === tcTime.minute && m[3] === tcComputed.period;
-  }
+  const ok = convertAnswerOk(raw);
 
   if (ok){
     checkFeedback.textContent = 'Correct!';
@@ -3907,6 +3964,7 @@ function render(){
 
     const input = document.getElementById('tc-answerInput');
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doCheckConvert(); });
+    input.addEventListener('input', () => { if (convertAnswerOk(input.value)) doCheckConvert(); });
     setTimeout(() => input.focus(), 30);
 
     checkRow.style.display = 'flex';
@@ -4158,6 +4216,7 @@ function render(){
       const pairCheckBtn = document.getElementById('hcf-pairCheckBtn');
       pairCheckBtn.addEventListener('click', checkPair);
       pairInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkPair(); });
+      pairInput.addEventListener('input', () => { if (!pairInput.disabled && parseInt(pairInput.value, 10) === partner) checkPair(); });
       if (!(checkedPair && isCorrectPair)) setTimeout(() => pairInput.focus(), 30);
     }
   } else {
@@ -4187,6 +4246,7 @@ function render(){
     const finalCheckBtn = document.getElementById('hcf-finalCheckBtn');
     finalCheckBtn.addEventListener('click', () => checkFinal(actualHCF));
     finalInput.addEventListener('keydown', e => { if (e.key === 'Enter') checkFinal(actualHCF); });
+    finalInput.addEventListener('input', () => { if (!finalInput.disabled && parseInt(finalInput.value, 10) === actualHCF) checkFinal(actualHCF); });
     if (!(finalChecked && finalCorrect)) setTimeout(() => finalInput.focus(), 30);
   }
 }
@@ -4455,6 +4515,29 @@ function render(){
         fb.textContent = '✗ Check the highlighted boxes and try again.'; fb.className = 'checkFeedback bad';
       }
     };
+
+    const headInputs = [];
+    for (let c = 0; c < nA; c++) headInputs.push({ inp: document.getElementById('lat-headA' + c), want: A_DIGITS[c] });
+    for (let r = 0; r < nB; r++) headInputs.push({ inp: document.getElementById('lat-headB' + r), want: B_DIGITS[r] });
+    headInputs.forEach((h, idx) => {
+      h.inp.addEventListener('input', () => {
+        h.inp.classList.remove('wrong');
+        if (h.inp.value.trim() === '') return;
+        if (parseInt(h.inp.value, 10) === h.want){
+          h.inp.classList.add('correct'); h.inp.disabled = true;
+          const next = headInputs.slice(idx + 1).find(x => !x.inp.disabled);
+          if (next) next.inp.focus();
+          else if (headInputs.every(x => x.inp.disabled)){
+            fb.textContent = '✓ Correct! Now multiply cell by cell.'; fb.className = 'checkFeedback good';
+            checkBtn.disabled = true;
+            setTimeout(() => { stage = 'cells'; render(); }, 500);
+          }
+        } else {
+          h.inp.classList.add('wrong');
+        }
+      });
+    });
+    setTimeout(() => headInputs[0].inp.focus(), 30);
   }
 
   function renderCells(host){
@@ -4512,7 +4595,8 @@ function render(){
       fallbackHost.appendChild(unitsAns);
       tensAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
       unitsAns.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
-      setTimeout(() => unitsAns.focus(), 30);
+      wireAuto(tensAns, unitsAns);
+      setTimeout(() => tensAns.focus(), 30);
     }
     if (cellAttemptFailed) showFallback();
 
@@ -4544,13 +4628,32 @@ function render(){
         fb.className = 'checkFeedback bad';
         gridTensInp.value = ''; gridUnitsInp.value = '';
         showFallback();
-        tensAns.value = ''; unitsAns.value = ''; unitsAns.focus();
+        tensAns.value = ''; unitsAns.value = ''; tensAns.focus();
       }
     }
     checkBtn.onclick = doCheck;
     if (gridUnitsInp) gridUnitsInp.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
     if (gridTensInp) gridTensInp.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
-    setTimeout(() => { if (!cellAttemptFailed && gridUnitsInp) gridUnitsInp.focus(); }, 30);
+
+    function autoCheck(tensEl, unitsEl){
+      const uv = parseInt(unitsEl.value, 10);
+      if (isNaN(uv)) return;
+      const tv = tensEl.value.trim() === '' ? 0 : parseInt(tensEl.value, 10);
+      if (tv === cellData.tens && uv === cellData.units) doCheck();
+    }
+    function wireAuto(tensEl, unitsEl){
+      tensEl.addEventListener('input', () => {
+        tensEl.value = tensEl.value.replace(/[^0-9]/g, '').slice(0, 1);
+        if (tensEl.value !== '') unitsEl.focus();
+        autoCheck(tensEl, unitsEl);
+      });
+      unitsEl.addEventListener('input', () => {
+        unitsEl.value = unitsEl.value.replace(/[^0-9]/g, '').slice(0, 1);
+        autoCheck(tensEl, unitsEl);
+      });
+    }
+    if (gridTensInp && gridUnitsInp) wireAuto(gridTensInp, gridUnitsInp);
+    setTimeout(() => { if (!cellAttemptFailed && gridTensInp) gridTensInp.focus(); }, 30);
   }
 
   function gridBlock(inner){
@@ -4627,9 +4730,22 @@ function render(){
       if (!carryOk && carryEl){ carryEl.value = ''; if (answerOk) carryEl.focus(); }
     }
     checkBtn.onclick = doCheck;
-    [answerInput, document.getElementById('lat-carryInput' + (bandPos + 1))].forEach(inp => {
+    const nextCarryInput = document.getElementById('lat-carryInput' + (bandPos + 1));
+    [answerInput, nextCarryInput].forEach(inp => {
       if (inp) inp.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
     });
+    function autoCheck(){
+      const val = parseInt(answerInput.value, 10);
+      if (isNaN(val) || val !== act.digit) return;
+      const rawCarry = nextCarryInput ? nextCarryInput.value.trim() : '';
+      const carryVal = rawCarry === '' ? 0 : parseInt(rawCarry, 10);
+      if (!nextCarryInput || carryVal === act.carryOut) doCheck();
+    }
+    answerInput.addEventListener('input', () => {
+      if (nextCarryInput && act.carryOut > 0 && parseInt(answerInput.value, 10) === act.digit && nextCarryInput.value === '') nextCarryInput.focus();
+      autoCheck();
+    });
+    if (nextCarryInput) nextCarryInput.addEventListener('input', autoCheck);
     setTimeout(() => answerInput.focus(), 30);
   }
 
@@ -4773,6 +4889,7 @@ function render(){
     }
     checkBtn.onclick = doCheck;
     answerInput.addEventListener('keydown', e => { if (e.key === 'Enter') doCheck(); });
+    answerInput.addEventListener('input', () => { if (answerInput.value.trim() === correct) doCheck(); });
     setTimeout(() => answerInput.focus(), 30);
   }
 
